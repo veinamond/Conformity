@@ -27,9 +27,11 @@ string inttostr(int number)
 }
 class Conformity{
 	
-public:	
+private:
 	vector <int*> M;
 	vector <int> Matrix;
+	vector <int> WeightedMatrix;
+	vector <int> Reachability;
 	vector <int> conformitylevel;
 	vector <int> conformism;
 	vector <int> Curagit;
@@ -40,12 +42,13 @@ public:
 	int dimension;
 	int nofsteps;
 
+public:	
 	::Conformity(){
 		nVars=0;
 		M.clear();
 		Matrix.clear();
 		}
-		~Conformity(){
+	~Conformity(){
 		nVars=0;
 		nClauses=0;
 		M.clear();
@@ -79,6 +82,7 @@ public:
 			else {Mstream << - (dimension+i+1) <<" 0"<<endl;}
 		}
 	}
+	void construct_reachability_matrix (int radius);
 	vector <int> HMerge (vector<int> &a, vector<int> &b, int n);
 	vector <int> HSort (vector<int>& a, int n);
 	vector <int> SHSort (vector<int> a, int lown, int n);
@@ -101,7 +105,6 @@ public:
 	void Newvareqand(int nv, vector<int> right);
 	void Print (const char * fn);
 	void Printmatrix();
-
 	void functioning( int step, bool agitated);
 	void generalfunctioning( int step, bool agitated, bool loyaled, bool strict);
 	void Notmoreatstart(int n, bool agitators, bool loyalists);
@@ -109,8 +112,7 @@ public:
 	void Notmoreatend(int n);
 	void Fixedpoint();
 	void Dump (char * fn);
-	vector<int> loadssfromfile(const char * filename);
-	
+	vector<int> loadssfromfile(const char * filename);	
 };
 vector<int> Conformity::loadssfromfile(const char *filename){
 	ifstream myfile;
@@ -118,29 +120,28 @@ vector<int> Conformity::loadssfromfile(const char *filename){
 	myfile.open(filename);
 	string s;
 	while ( myfile.good() ){
-	  getline (myfile,s);
-	  if (s=="INDET") break;
-	  if ((s.find("SAT")==string::npos)&&(s.length()>4)){
-	  int k=0;
-	  int ks=0;
-	  int ke=0;
-	  bool b=true;
-	  while (b==true){
-	  if ((s[k]==' ')||(k==s.length()-1)){
-	  if (k==s.length()-1) {
-	  cout<<"THIS";
-	  b=false;
-	  }
-	  ke=k;
-	  string t=s.substr(ks,ke-ks);
-	  int r=strtoi(t);
-	  a.push_back(r);
-	  ks=ke;
-	  }
-	  k++;
-	  }	  
-	  
-	  }
+    getline (myfile,s);
+	if (s=="INDET") break;
+		if ((s.find("SAT")==string::npos)&&(s.length()>4)){
+			int k=0;
+			int ks=0;
+			int ke=0;
+			bool b=true;
+			while (b==true){
+				if ((s[k]==' ')||(k==s.length()-1)){
+					if (k==s.length()-1) {
+						cout<<"THIS";
+						b=false;
+					}
+					ke=k;
+					string t=s.substr(ks,ke-ks);
+					int r=strtoi(t);
+					a.push_back(r);
+					ks=ke;
+				}
+				k++;
+				}	
+	   }
 	}
 	myfile.close();
 	return a;
@@ -156,40 +157,41 @@ void Conformity::loadmatrixfromfile(int n, const char * filename){
 	bool isconformity=false;
 	bool isconformism=false;
 	for (int t=0;t<n+4;t++){
-	  getline (myfile,s);
-	  if (s.find("Conformity level")!=string::npos){
-	  isconformity=true; 
-	  }
-	  else if (s.find("Conformism")!=string::npos){
-	  isconformity=false; 	  
-	  isconformism=true; 
-	  }
-	  else {
-	  int r1=0;
-	  int r2=0;
-	  for (int i=0;i<s.length();i++){
-	  if ((s[i]==' ')||(s[i]=='\n')){
-	r2=i;
-	if ((r2-r1)>0){
-	string tmp=s.substr(r1,r2-r1);
-	int t=strtoi(tmp);
-	if (!isconformity&&!isconformism) {
-	Matrix.push_back(t);	
-	}
-	else if (isconformity){
-	conformitylevel.push_back(t);
-	}
-	else if (isconformism){
-	conformism.push_back(t);
-	}
-	r1=r2;
-	}
-	}
-	  }
-	  }
-	
-	}
-	  if (Matrix.size()!=dimension*dimension){cout<<endl<<"Matrix size"<<Matrix.size()<<" is wrong "<<endl; }	  
+		  getline (myfile,s);
+		  if (s.find("Conformity level")!=string::npos){
+			 isconformity=true; 
+		  }
+		  else if (s.find("Conformism")!=string::npos){
+			  isconformity=false; 	  
+			  isconformism=true; 
+		  }
+		  else {
+			int r1=0;
+			int r2=0;
+			for (int i=0;i<s.length();i++){
+
+				if ((s[i]==' ')||(s[i]=='\n')){
+					r2=i;
+					if ((r2-r1)>0){
+						string tmp=s.substr(r1,r2-r1);
+						int t=strtoi(tmp);
+						if (!isconformity&&!isconformism) {
+							Matrix.push_back(t);	
+						}
+						else if (isconformity){
+							conformitylevel.push_back(t);
+						}
+						else if (isconformism){
+							conformism.push_back(t);
+						}
+						r1=r2;
+					}
+				}
+
+			}
+		  }
+		}		
+	if (Matrix.size()!=dimension*dimension){cout<<endl<<"Matrix size"<<Matrix.size()<<" is wrong "<<endl; }	  
 	myfile.close();
 }
 void Conformity::equalize(vector<int>r1, vector<int>r2){
@@ -205,19 +207,19 @@ void Conformity::savematrixtofile(const char* filename){
 	myfile.open(filename);
 	string s;
 	for (int i=0;i<dimension;i++){
-	for (int j=0;j<dimension;j++){
-	myfile<<matrixelement(i,j)<<" ";
-	}
-	myfile<<endl;
+		for (int j=0;j<dimension;j++){
+			myfile<<matrixelement(i,j)<<" ";
+		}
+		myfile<<endl;
 	}
 	myfile<<"Conformity level"<<endl;
 	for (int i=0;i<dimension;i++){
-	myfile<<conformitylevel[i]<<" ";
+		myfile<<conformitylevel[i]<<" ";
 	}
 	myfile<<endl;
 	myfile<<"Conformism"<<endl;
 	for (int i=0;i<dimension;i++){
-	myfile<<conformism[i]<<" ";
+		myfile<<conformism[i]<<" ";
 	}
 	myfile.close();
 }
@@ -357,6 +359,37 @@ void Conformity::printprogresstofile_gv(vector<int>agitators, vector<int> loyali
 	
 	out.close();
 }
+void Conformity::construct_reachability_matrix (int radius){
+	vector<int> t(Matrix);
+	for (int r=0;r<radius;r++){
+		for (int i=0;i<dimension;i++){
+			for (int j=0;j<dimension;j++){
+				if (t[i*dimension+j]!=0){//process i-th row
+					for (int h=0;h<dimension;h++){
+						//if j-th vertex is non-zero neighbour, check its neighbours
+						if (i!=h){
+							if ((t[j*dimension+h]>0)&&((t[i*dimension+h]==0)||(t[i*dimension+j]+t[j*dimension+h]<t[i*dimension+h]))){
+								t[i*dimension+h]=t[i*dimension+j]+t[j*dimension+h];
+								cout<<endl <<"Route "<<i+1<<" -> "<<j+1<< " -> "<< h+1<<endl;
+							}
+						}
+						//if we can reduce the neighbourhood characteristic - just do it
+					}
+				}
+			}
+		}
+
+		cout<<endl<<"reachability matrix step "<<r<<endl;
+		for (int i=0;i<dimension;i++){
+			for (int j=0;j<dimension;j++){
+				cout<<t[i*dimension+j]<<" ";					
+			}
+			cout<<endl;
+		}
+	}	
+	Reachability=t;
+}
+
 bool Conformity::calculate(vector<int> inp, int step){
 	vector<int> agitators;
 	vector<int> loyalists;
@@ -400,7 +433,7 @@ bool Conformity::calculate(vector<int> inp, int step){
 				int cursum=0;
 				int deg=0;
 				for (int j=0;j<dimension;j++){
-					deg+=matrixelement(i,j);
+					deg+=matrixelement(i,j);//WTF
 				}
 				for (int j=0;j<dimension;j++){
 					if ((matrixelement(i,j)==1)&&(curstep[j]==1)) cursum++;
@@ -661,12 +694,12 @@ void Conformity::Fixedpoint(){
 void Conformity::Printmatrix(){
 	cout<<endl<<"Graph matrix"<<endl;
 	for (int i=0;i<dimension;i++){
-	for (int j=0;j<dimension;j++){
-	cout<<matrixelement(i,j)<<" ";
-	logstream<<matrixelement(i,j)<<" ";
-	}
-	logstream<<endl;
-	cout<<endl;
+		for (int j=0;j<dimension;j++){
+			cout<<matrixelement(i,j)<<" ";
+			logstream<<matrixelement(i,j)<<" ";
+		}
+		logstream<<endl;
+		cout<<endl;
 	}
 	cout<<endl;
 	logstream<<endl;
@@ -864,9 +897,9 @@ void Conformity::generalfunctioning( int step, bool agitated, bool loyaled, bool
 	vector<int> loyalists;
 	vector<int> firststep;
 	for (int i=0;i<dimension;i++){
-	agitators.push_back(i+1);
-	loyalists.push_back(-(dimension+i+1));
-	firststep.push_back(dimension*2+i+1);
+		agitators.push_back(i+1);
+		loyalists.push_back(-(dimension+i+1));
+		firststep.push_back(dimension*2+i+1);
 	}
 	vector<int> curstep_vars;
 	//zero step = initialization required if agitated or loyaled !=0
@@ -891,6 +924,7 @@ void Conformity::generalfunctioning( int step, bool agitated, bool loyaled, bool
 			//build the neighbours list for the i-th vertex;
 			vector<int> neighbours;
 			for (int j=0;j<dimension;j++){
+				//wrong order. Adjacency matrix is constructed vice versa
 				if (matrixelement(i,j)==1){neighbours.push_back(j);}	
 			}
 			//count "1s" in this list
@@ -2043,62 +2077,12 @@ int checktests(int noftests, int dimension, int step, double gnpprob, double con
 	return 1;
 }
 int main (){
-	//int runtests_noagit(int noftests, int dimension, int step, double gnpprob, double confprob, int confpercent, int nomorepercent, int nolesspercent, string foldername)
-	//int runtests_agit(int noftests, int dimension, int step, double gnpprob, double confprob, int confpercent, int nomorepercent, int nolesspercent, string foldername)
-	//int runtests_loyaled_vs_agit(int noftests, int dimension, int step, double gnpprob, double confprob, int confpercent, int nomorepercent, int nolesspercent, string foldername, bool agitated)
-	//int runtests_loyaled_vs_agit_delayed(int noftests, int dimension, int step, double gnpprob, double confprob, int confpercent, int nomorepercent, int nomorloyalpercent, int nolesspercent, string foldername){
-	
-	
+	Conformity a;
+	a.GNPgraph(0.3,7);
+	a.initializeconformity(0,0);
+	a.Printmatrix();
+	a.construct_reachability_matrix(3);
 
-	//gentests_noagit(10,10,5,0.6,1,0,40,80,"D:\\Tests\\Linux\\conf111\\noagit_10_06");
-	
-
-	//gentests_noagit(10,10,10,0.5,1,0,50,80,"D:\\Tests\\Linux\\noagit_10_03");
-	
-	//gentests_noagit(10,8,5,0.5,1,0,40,80,"D:\\Tests\\Linux\\conf111\\noagit_8_05");
-	//checktests(10,8,5,0.5,1,0,40,80,"D:\\Tests\\Linux\\conf111\\noagit_8_05");
-	//checktests(10,10,5,0.5,1,0,40,80,"D:\\Tests\\Linux\\conf111\\noagit_10_06");
-	
-	
-	//gentests_agit(10,8,5,0.5,1,0,25,90,"D:\\tests\\Linux\\conf111\\dim8_agit_2b_9e");
-	
-	//checktests(10,8,5,0.5,1,0,25,90,"D:\\tests\\Linux\\conf111\\dim8_agit_2b_9e");
-	//gentests_loyaled(10,8,1,25,25,"D:\\tests\\Linux\\conf111\\dim8_agit_2b_9e","D:\\tests\\Linux\\conf111\\dim8_2loyal_vs_agit_2b_9e");
-//	gentests_loyaled_delayed(10,8,5,40,25,"D:\\tests\\Linux\\conf111\\dim8_agit_2b_9e","D:\\tests\\Linux\\conf111\\dim8_2loyal_vs_agit_2b_9e_del");
-
-	//gentests_noagit(1,8,5,0.4,1,0,40,80,"D:\\Tests\\Linux\\conf111\\noagit_8_04");
-	//checktests(10,8,5,0.5,1,0,40,80,"D:\\Tests\\Linux\\conf111\\noagit_8_05");
-	//checktests(10,10,5,0.5,1,0,40,80,"D:\\Tests\\Linux\\conf111\\noagit_10_06");
-	//gentests_noagit(1, 20, 10, 0.3, 1, 0, 40, 80, "D:\\Tests\\Linux\\conf111\\noagit_20_03_40_80");
-	
-	
-	//checktests(1, 20, 10, 0.3, 1, 0, 40, 80, "D:\\Tests\\Linux\\conf111\\noagit_20_03_40_80");
-
-//	gentests_agit(1, 20, 10, 0.3, 1, 0, 20, 90, "D:\\Tests\\Linux\\conf111\\agit_20_03_20_90");
-//	checktests(1, 20, 10, 0.3, 1, 0, 40, 80, "D:\\Tests\\Linux\\conf111\\noagit_20_03_40_80");
-//	checktests(1, 20, 10, 0.3, 1, 0, 30, 25, "D:\\Tests\\Linux\\conf111\\delayed_20_03_20_25");
-//	checktests(1, 20, 10, 0.3, 1, 0, 20, 90, "D:\\Tests\\Linux\\conf111\\agit_20_03_20_90");
-//	gentests_loyaled(1, 20, 1, 25, 25,"D:\\Tests\\Linux\\conf111\\agit_20_03_20_90", "D:\\Tests\\Linux\\conf111\\loyaled_20_03_25_25");
-//	gentests_loyaled_delayed(1, 20, 10, 30, 25, "D:\\Tests\\Linux\\conf111\\agit_20_03_20_90", "D:\\Tests\\Linux\\conf111\\delayed_20_03_30_25");
-	//gentests_noagit(1, 10, 10, 0.3, 1, 0, 30, 90, "D:\\Tests\\Dima_F\\noagit_100_20_");
-	gentests_noagit(10,100,10,0.3,1,0,20,80,"D:\\Tests\\Dima_F\\noagit_03_100_20_80_10steps");
-	gentests_noagit(10,100,10,0.4,1,0,20,80,"D:\\Tests\\Dima_F\\noagit_04_100_20_80_10steps");
-	gentests_noagit(10,100,10,0.5,1,0,20,80,"D:\\Tests\\Dima_F\\noagit_05_100_20_80_10steps");
-	
-	gentests_noagit(10,200,10,0.3,1,0,20,80,"D:\\Tests\\Dima_F\\noagit_03_200_20_80_10steps");
-	gentests_noagit(10,200,10,0.4,1,0,20,80,"D:\\Tests\\Dima_F\\noagit_04_200_20_80_10steps");
-	gentests_noagit(10,200,10,0.5,1,0,20,80,"D:\\Tests\\Dima_F\\noagit_05_200_20_80_10steps");
-	
-
-	gentests_noagit(10,100,20,0.3,1,0,20,80,"D:\\Tests\\Dima_F\\noagit_03_100_20_80_20steps");
-	gentests_noagit(10,100,20,0.4,1,0,20,80,"D:\\Tests\\Dima_F\\noagit_04_100_20_80_20steps");
-	gentests_noagit(10,100,20,0.5,1,0,20,80,"D:\\Tests\\Dima_F\\noagit_05_100_20_80_20steps");
-	//gentests_loyaled_delayed(1, 20, 10, 20, 25, "D:\\Tests\\Linux\\conf111\\agit_20_03_20_90", "D:\\Tests\\Linux\\conf111\\delayed_20_03_20_25");
-	//gentests_loyaled_delayed(1, 20, 10, 15, 25, "D:\\Tests\\Linux\\conf111\\agit_20_03_20_90", "D:\\Tests\\Linux\\conf111\\delayed_20_03_15_25");
-	//gentests_loyaled_delayed(1, 20, 15, 15, 25, "D:\\Tests\\Linux\\conf111\\agit_20_03_20_90", "D:\\Tests\\Linux\\conf111\\delayed_20_03_15_25_15steps");
-	//gentests_loyaled_delayed(1, 20, 20, 12, 25, "D:\\Tests\\Linux\\conf111\\agit_20_03_20_90", "D:\\Tests\\Linux\\conf111\\delayed_20_03_12_25_15steps");
-	//checktests(1, 20, 10, 0.3, 1, 0, 30, 25, "D:\\Tests\\Linux\\conf111\\delayed_20_03_30_25");
-	//checktests(1, 20, 10, 0.3, 1, 0, 30, 25, "D:\\Tests\\Linux\\conf111\\delayed_20_03_20_25");
 	int q;
 	cin>>q;
 }
