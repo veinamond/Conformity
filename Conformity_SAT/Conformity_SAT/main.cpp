@@ -83,6 +83,7 @@ public:
 		}
 	}
 	void construct_reachability_matrix (int radius);
+	void construct_weights_matrix (int radius);
 	vector <int> HMerge (vector<int> &a, vector<int> &b, int n);
 	vector <int> HSort (vector<int>& a, int n);
 	vector <int> SHSort (vector<int> a, int lown, int n);
@@ -101,6 +102,7 @@ public:
 	void printprogresstofile_gv(vector<int>agitators, vector<int> loyalists, vector<int> activity, const char *filename);
 	void equalize(vector<int>r1, vector<int>r2);
 	vector<int> vecnewvareqand(const vector<int> r1, const vector<int>r2);
+	vector<int> construct_neighbourhood(int i);
 	vector<int> vecnewvareqor(const vector<int> r1, const vector<int>r2);
 	void Newvareqand(int nv, vector<int> right);
 	void Print (const char * fn);
@@ -364,13 +366,12 @@ void Conformity::construct_reachability_matrix (int radius){
 	for (int r=0;r<radius;r++){
 		for (int i=0;i<dimension;i++){
 			for (int j=0;j<dimension;j++){
-				if (t[i*dimension+j]!=0){//process i-th row
-					for (int h=0;h<dimension;h++){
-						//if j-th vertex is non-zero neighbour, check its neighbours
+				if (t[i*dimension+j]!=0){//if a_ij>0 & a_jh>0 (+some additional conditions) -> a_ih=a_ij+a_jh
+					for (int h=0;h<dimension;h++){						
 						if (i!=h){
 							if ((t[j*dimension+h]>0)&&((t[i*dimension+h]==0)||(t[i*dimension+j]+t[j*dimension+h]<t[i*dimension+h]))){
 								t[i*dimension+h]=t[i*dimension+j]+t[j*dimension+h];
-								cout<<endl <<"Route "<<i+1<<" -> "<<j+1<< " -> "<< h+1<<endl;
+			//					cout<<endl <<"Route "<<i+1<<" -> "<<j+1<< " -> "<< h+1<<endl;
 							}
 						}
 						//if we can reduce the neighbourhood characteristic - just do it
@@ -389,7 +390,38 @@ void Conformity::construct_reachability_matrix (int radius){
 	}	
 	Reachability=t;
 }
-
+void Conformity::construct_weights_matrix (int radius){
+	if (Reachability.size()==0)exit;
+	vector<int> t;
+	for(int i=0;i<Reachability.size();i++){
+		if (Reachability[i]==0) {
+			t.push_back(0);
+		}
+		else {
+			if ((radius - Reachability[i]+1)>0){
+				t.push_back(radius-Reachability[i]+1);
+			}
+			else{t.push_back(0);}
+		}		
+	}	
+	cout<<endl<<"Weights matrix "<<endl;
+	for (int i=0;i<dimension;i++){
+		for (int j=0;j<dimension;j++){
+			cout<<t[i*dimension+j]<<" ";
+		}
+		cout<<endl;
+	}
+	WeightedMatrix=t;
+}
+vector<int> Conformity::construct_neighbourhood(int i){
+	vector<int> res;
+	for (int j=0;j<dimension;j++){
+			for (int h=0;h<WeightedMatrix[j*dimension+i];h++){
+				res.push_back(j);
+			}
+		}
+	return res;	
+}
 bool Conformity::calculate(vector<int> inp, int step){
 	vector<int> agitators;
 	vector<int> loyalists;
@@ -1099,8 +1131,8 @@ void Conformity::seqcounter( vector<int> a)
 	int *lcl;
 	lcl=new(int [lenk+1]);
 	for (int i=0;i<lenk-1;i++){
-	lcl[i]=a[i];
-	s.push_back(++nVars);
+		lcl[i]=a[i];
+		s.push_back(++nVars);
 	}
 	lcl[lenk-1]=a[lenk-1];
 	lcl[lenk]=0;
@@ -1117,21 +1149,21 @@ void Conformity::seqcounter( vector<int> a)
 	t[2]=0;
 	M.push_back(t);
 	for (int i=2;i<lenk;i++){
-	t=new(int[3]);
-	t[0]=-a[i-1];
-	t[1]=s[i-1];
-	t[2]=0;
-	M.push_back(t);
-	t=new(int[3]);
-	t[0]=-s[i-1-1];
-	t[1]=s[i-1];
-	t[2]=0;
-	M.push_back(t);
-	t=new(int[3]);
-	t[0]=-a[i-1];
-	t[1]=-s[i-1-1];
-	t[2]=0;
-	M.push_back(t);
+		t=new(int[3]);
+		t[0]=-a[i-1];
+		t[1]=s[i-1];
+		t[2]=0;
+		M.push_back(t);
+		t=new(int[3]);
+		t[0]=-s[i-1-1];
+		t[1]=s[i-1];
+		t[2]=0;
+		M.push_back(t);
+		t=new(int[3]);
+		t[0]=-a[i-1];
+		t[1]=-s[i-1-1];
+		t[2]=0;
+		M.push_back(t);
 	}
 }
 vector <int> Conformity::Selectodd(vector<int> a){
@@ -1154,36 +1186,36 @@ vector <int> Conformity::HMerge(vector<int> &a, vector<int> &b, int n){
 	vector<int> res;
 	for (int i=0;i<2*n;i++){int t=++nVars;res.push_back(t);}
 	if (n==1){
-	Mstream<<-a[0]<<" "<<-b[0]<<" "<<res[1]<<" 0"<<endl;
-	Mstream<<-a[0]<<" "<<res[0]<<" "<<" 0"<<endl;
-	Mstream<<-b[0]<<" "<<res[0]<<" "<<" 0"<<endl;
-	Mstream<<a[0]<<" "<<b[0]<<" "<<-res[0]<<" 0"<<endl;
-	Mstream<<a[0]<<" "<<-res[1]<<" "<<" 0"<<endl;
-	Mstream<<b[0]<<" "<<-res[1]<<" "<<" 0"<<endl;
-	nClauses+=6;
+		Mstream<<-a[0]<<" "<<-b[0]<<" "<<res[1]<<" 0"<<endl;
+		Mstream<<-a[0]<<" "<<res[0]<<" "<<" 0"<<endl;
+		Mstream<<-b[0]<<" "<<res[0]<<" "<<" 0"<<endl;
+		Mstream<<a[0]<<" "<<b[0]<<" "<<-res[0]<<" 0"<<endl;
+		Mstream<<a[0]<<" "<<-res[1]<<" "<<" 0"<<endl;
+		Mstream<<b[0]<<" "<<-res[1]<<" "<<" 0"<<endl;
+		nClauses+=6;
 	}
 	else
-	{
-	vector<int> aeven=Selecteven(a);
-	vector<int> aodd=Selectodd(a);
-	vector<int> beven=Selecteven(b);
-	vector<int> bodd=Selectodd(b);
+		{
+		vector<int> aeven=Selecteven(a);
+		vector<int> aodd=Selectodd(a);
+		vector<int> beven=Selecteven(b);
+		vector<int> bodd=Selectodd(b);
 	
-	vector<int> D=HMerge(aodd,bodd,aodd.size());
-	vector<int> E=HMerge(aeven,beven,aeven.size());	
-	for (int i=1;i<n;i++){
-	res[0]=D[0];
-	res[2*n-1]=E[n-1];
+		vector<int> D=HMerge(aodd,bodd,aodd.size());
+		vector<int> E=HMerge(aeven,beven,aeven.size());	
+		for (int i=1;i<n;i++){
+			res[0]=D[0];
+			res[2*n-1]=E[n-1];
 	
-	Mstream<<-D[i+1-1]<<" "<<-E[i-1]<<" "<<res[2*i+1-1]<<" 0"<<endl;
-	Mstream<<-D[i+1-1]<<" "<<res[2*i-1]<<" "<<" 0"<<endl;
-	Mstream<<-E[i-1]<<" "<<res[2*i-1]<<" "<<" 0"<<endl;
+			Mstream<<-D[i+1-1]<<" "<<-E[i-1]<<" "<<res[2*i+1-1]<<" 0"<<endl;
+			Mstream<<-D[i+1-1]<<" "<<res[2*i-1]<<" "<<" 0"<<endl;
+			Mstream<<-E[i-1]<<" "<<res[2*i-1]<<" "<<" 0"<<endl;
 
-	Mstream<<D[i+1-1]<<" "<<E[i-1]<<" "<<-res[2*i-1]<<" 0"<<endl;
-	Mstream<<D[i+1-1]<<" "<<-res[2*i+1-1]<<" "<<" 0"<<endl;
-	Mstream<<E[i-1]<<" "<<-res[2*i+1-1]<<" "<<" 0"<<endl;	
-	nClauses+=6;
-	}	
+			Mstream<<D[i+1-1]<<" "<<E[i-1]<<" "<<-res[2*i-1]<<" 0"<<endl;
+			Mstream<<D[i+1-1]<<" "<<-res[2*i+1-1]<<" "<<" 0"<<endl;
+			Mstream<<E[i-1]<<" "<<-res[2*i+1-1]<<" "<<" 0"<<endl;	
+			nClauses+=6;
+		}	
 	}
 	return res;
 }
@@ -1192,89 +1224,86 @@ vector <int> Conformity::SMerge (vector<int> a, vector <int> b, int n){//rewrite
 	if (n==1){ int t=++nVars; res.push_back(t);
 	   int r=++nVars; res.push_back(r);}
 	else {
-	res.push_back(0);
-	for (int i=2;i<=n+1;i++){int t=++nVars;res.push_back(t);}
+		res.push_back(0);
+		for (int i=2;i<=n+1;i++){int t=++nVars;res.push_back(t);}
 	}	
 	if (n==1){
-	int *cl1=new(int[4]);
-	int *cl2=new(int[3]);
-	int *cl3=new(int[3]);
-	int *cl4=new(int[4]);
-	int *cl5=new(int[3]);
-	int *cl6=new(int[3]);
+		int *cl1=new(int[4]);
+		int *cl2=new(int[3]);
+		int *cl3=new(int[3]);
+		int *cl4=new(int[4]);
+		int *cl5=new(int[3]);
+		int *cl6=new(int[3]);
 	
-	cl1[0]=-a[0]; cl1[1]=-b[0]; cl1[2]=res[1]; cl1[3]=0;
-	cl2[0]=-a[0]; cl2[1]=res[0]; cl2[2]=0;
-	cl3[0]=-b[0]; cl3[1]=res[0]; cl3[2]=0;
+		cl1[0]=-a[0]; cl1[1]=-b[0]; cl1[2]=res[1]; cl1[3]=0;
+		cl2[0]=-a[0]; cl2[1]=res[0]; cl2[2]=0;
+		cl3[0]=-b[0]; cl3[1]=res[0]; cl3[2]=0;
 
-	cl4[0]=a[0]; cl4[1]=b[0]; cl4[2]=-res[0]; cl4[3]=0;
-	cl5[0]=a[0]; cl5[1]=-res[1]; cl5[2]=0;
-	cl6[0]=b[0]; cl6[1]=-res[1]; cl6[2]=0;
-	M.push_back(cl1);
-	M.push_back(cl2);
-	M.push_back(cl3);
-	M.push_back(cl4);
-	M.push_back(cl5);
-	M.push_back(cl6);
+		cl4[0]=a[0]; cl4[1]=b[0]; cl4[2]=-res[0]; cl4[3]=0;
+		cl5[0]=a[0]; cl5[1]=-res[1]; cl5[2]=0;
+		cl6[0]=b[0]; cl6[1]=-res[1]; cl6[2]=0;
+		M.push_back(cl1);
+		M.push_back(cl2);
+		M.push_back(cl3);
+		M.push_back(cl4);
+		M.push_back(cl5);
+		M.push_back(cl6);
 	}
 	else
 	{
-	vector<int> aeven=Selecteven(a);
-	vector<int> aodd=Selectodd(a);
-	vector<int> beven=Selecteven(b);
-	vector<int> bodd=Selectodd(b);
+		vector<int> aeven=Selecteven(a);
+		vector<int> aodd=Selectodd(a);
+		vector<int> beven=Selecteven(b);
+		vector<int> bodd=Selectodd(b);
 	
-	vector<int> D=SMerge(aodd,bodd,aodd.size());
-	vector<int> E=SMerge(aeven,beven,aeven.size());
-	res[0]=D[0];
-	for (int i=1;i<=n/2;i++){
-	int *cl1=new(int[4]);
-	int *cl2=new(int[3]);
-	int *cl3=new(int[3]);
-	int *cl4=new(int[4]);
-	int *cl5=new(int[3]);
-	int *cl6=new(int[3]);
+		vector<int> D=SMerge(aodd,bodd,aodd.size());
+		vector<int> E=SMerge(aeven,beven,aeven.size());
+		res[0]=D[0];
+		for (int i=1;i<=n/2;i++){
+			int *cl1=new(int[4]);
+			int *cl2=new(int[3]);
+			int *cl3=new(int[3]);
+			int *cl4=new(int[4]);
+			int *cl5=new(int[3]);
+			int *cl6=new(int[3]);
 	
 
-	cl1[0]=-D[i+1-1]; cl1[1]=-E[i-1]; cl1[2]=res[2*i+1-1]; cl1[3]=0;
-	cl2[0]=-D[i+1-1]; cl2[1]=res[2*i-1]; cl2[2]=0;
-	cl3[0]=-E[i-1];cl3[1]=res[2*i-1]; cl3[2]=0;
+			cl1[0]=-D[i+1-1]; cl1[1]=-E[i-1]; cl1[2]=res[2*i+1-1]; cl1[3]=0;
+			cl2[0]=-D[i+1-1]; cl2[1]=res[2*i-1]; cl2[2]=0;
+			cl3[0]=-E[i-1];cl3[1]=res[2*i-1]; cl3[2]=0;
 
-	cl4[0]=D[i+1-1];cl4[1]=E[i-1]; cl4[2]=-res[2*i-1]; cl4[3]=0;
-	cl5[0]=D[i+1-1];cl5[1]=-res[2*i+1-1]; cl5[2]=0;
-	cl6[0]=E[i-1]; cl6[1]=-res[2*i+1-1]; cl6[2]=0;
-	M.push_back(cl1);
-	M.push_back(cl2);
-	M.push_back(cl3);
-	M.push_back(cl4);
-	M.push_back(cl5);
-	M.push_back(cl6);
-	}	
-
+			cl4[0]=D[i+1-1];cl4[1]=E[i-1]; cl4[2]=-res[2*i-1]; cl4[3]=0;
+			cl5[0]=D[i+1-1];cl5[1]=-res[2*i+1-1]; cl5[2]=0;
+			cl6[0]=E[i-1]; cl6[1]=-res[2*i+1-1]; cl6[2]=0;
+			M.push_back(cl1);
+			M.push_back(cl2);
+			M.push_back(cl3);
+			M.push_back(cl4);
+			M.push_back(cl5);
+			M.push_back(cl6);
+		}	
 	}
-
 	return res;
-
 }
 vector<int> Conformity::HSort(vector<int> &a, int n){
 	vector<int>res;
 	if (n/2>1){
-	vector<int>l;
-	vector<int>r;
-	for (int i=0;i<n/2;i++){
-	l.push_back(a[i]);
-	r.push_back(a[n/2+i]);
-	}
-	vector<int> lsort=HSort(l,n/2);
-	vector<int> rsort=HSort(r,n/2);
-	res=HMerge(lsort,rsort,n/2);	
+		vector<int>l;
+		vector<int>r;
+		for (int i=0;i<n/2;i++){
+			l.push_back(a[i]);
+			r.push_back(a[n/2+i]);
+		}
+			vector<int> lsort=HSort(l,n/2);
+			vector<int> rsort=HSort(r,n/2);
+			res=HMerge(lsort,rsort,n/2);	
 	}
 	else{
-	vector <int> l;
-	vector <int> r;
-	l.push_back(a[0]);
-	r.push_back(a[1]);
-	res=HMerge(l,r,1);
+		vector <int> l;
+		vector <int> r;
+		l.push_back(a[0]);
+		r.push_back(a[1]);
+		res=HMerge(l,r,1);
 	}
 	return res;
 }
@@ -1282,27 +1311,27 @@ vector<int> Conformity::SHSort(vector<int> a, int lown, int n){
 	vector<int>res;
 	vector<vector<int>> ntuples;
 	for (int i=0;i<a.size()/lown;i++){
-	vector<int> t;
-	for (int j=0;j<lown;j++){
-	t.push_back(a[i*lown+j]);
-	}
-	ntuples.push_back(t);
+		vector<int> t;
+		for (int j=0;j<lown;j++){
+			t.push_back(a[i*lown+j]);
+		}
+		ntuples.push_back(t);
 	}
 	vector<int> leftres;
 	for (int k=1;k<ntuples.size();k++){
-	if (k==1){
-	vector<int> sortedleft=HSort(ntuples[0],lown);
-	vector<int> sortedright=HSort(ntuples[1],lown);
-	leftres=SMerge(sortedleft,sortedright,lown);
-	}
-	else
-	{
-	vector<int> rightres;
-	vector<int> sortedright=HSort(ntuples[k],lown);
-	leftres.erase(leftres.end()-1);
-	rightres=SMerge(leftres,sortedright,lown);
-	leftres=rightres;
-	}
+		if (k==1){
+			vector<int> sortedleft=HSort(ntuples[0],lown);
+			vector<int> sortedright=HSort(ntuples[1],lown);
+			leftres=SMerge(sortedleft,sortedright,lown);
+		}
+		else
+		{
+			vector<int> rightres;
+			vector<int> sortedright=HSort(ntuples[k],lown);
+			leftres.erase(leftres.end()-1);
+			rightres=SMerge(leftres,sortedright,lown);
+			leftres=rightres;
+		}
 	}
 	return leftres;
 }
@@ -2078,10 +2107,11 @@ int checktests(int noftests, int dimension, int step, double gnpprob, double con
 }
 int main (){
 	Conformity a;
-	a.GNPgraph(0.3,7);
+	a.GNPgraph(0.4,10);
 	a.initializeconformity(0,0);
 	a.Printmatrix();
 	a.construct_reachability_matrix(3);
+	a.construct_weights_matrix(2);
 
 	int q;
 	cin>>q;
