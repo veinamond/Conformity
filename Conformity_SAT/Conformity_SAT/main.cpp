@@ -8,6 +8,36 @@
 #include <stdlib.h>
 #include <Windows.h>
 using namespace std;
+enum class Conformity_problem {Simple, Agitated, Loyal_VS_Agit, Loyal_VS_Agit_delayed, Undefined};
+enum class Conformity_graph {GNP_Graph, WS_Graph};
+enum class Conformity_conformitylevel_type {ThresholdConformityLevel, RandomConformityLevel};
+enum class Conformity_conformists {ConformistsOnly, NonConformistsOnly, MixedConformists};
+enum class Conformity_restrictions {Restrict_to_inactive, Restrict_to_active, Restrict_nothing};
+enum class Conformity_weights {Weights_at_random, Weights_Decrease_with_distance, Weights_Increase_with_distance};
+enum class Conformity_neighbourhood_type {AlwaysFullNeighborhood,From_Small_to_Big, From_Big_to_Small};
+enum class Conformity_At_Start {GEQStart,LEQStart, Undefined};
+enum class Conformity_At_End {GEQEnd,LEQEnd,Undefined};
+class Conformity_Parameters{
+public:
+	int dimension;//number of vertices in graph
+	int number_of_steps;
+	Conformity_problem conformity_problem;
+	Conformity_graph conformity_graph;
+	double graph_parameter_1; //probability of an edge for GNP / probability of switching in WS
+	int graph_parameter_2; //WS model - degree of vertex at start
+	Conformity_conformitylevel_type conformity_conformitylevel_type;
+	double confomitylevel_parameter; // threshold or leq.
+	Conformity_conformists conformity_conformists;
+	double conformists_parameter; // probability of "Conformists"
+	Conformity_restrictions conformity_restrictions;
+	Conformity_weights conformity_weights;
+	int Weights_radius;
+	Conformity_neighbourhood_type conformity_neighbourhood_type;
+	Conformity_At_Start conformity_at_start;
+	int Start_Value;
+	Conformity_At_End conformity_at_end;
+	int End_Value;
+};
 
 stringstream logstream;
 int strtoi(string s){
@@ -47,7 +77,8 @@ public:
 		nVars=0;
 		M.clear();
 		Matrix.clear();
-		}
+	}
+	::Conformity(Conformity_Parameters params);
 	~Conformity(){
 		nVars=0;
 		nClauses=0;
@@ -64,6 +95,10 @@ public:
 	return HSort(a,n);
 	}
 	void GNPgraph(double p, int n);
+	void WSgraph(int n, int k, double p);
+	void make_conformity_levels(Conformity_conformitylevel_type conformity_type, double conformity_parameter);
+	void make_conformists(Conformity_conformists conformists_type, double conformists_parameter);
+	void make_weights_matrix(Conformity_weights conformity_weights, int weights_radius);
 	int initializeconformity (double percent, double prob);
 	vector <int> Row (int i);
 	vector <int> Column (int j);
@@ -116,6 +151,35 @@ public:
 	void Dump (char * fn);
 	vector<int> loadssfromfile(const char * filename);	
 };
+Conformity::Conformity(Conformity_Parameters params){
+	M.clear();
+	Matrix.clear();
+	WeightedMatrix.clear();
+	Reachability.clear();
+	conformitylevel.clear();
+	conformism.clear();
+	Curagit.clear();
+	Curloyal.clear();
+	nVars=0;
+	nClauses=0;
+	dimension=params.dimension;
+	nofsteps=params.number_of_steps;
+	//graph structure
+	if (params.conformity_graph==Conformity_graph::GNP_Graph){
+		GNPgraph(params.graph_parameter_1,params.dimension);
+	}
+	else if (params.conformity_graph==Conformity_graph::WS_Graph){
+		WSgraph(params.dimension,params.graph_parameter_2,params.graph_parameter_1);
+	}
+	//weights_matrix 
+	make_weights_matrix(params.conformity_weights,params.Weights_radius);
+	//conformity levels
+	//when we introduce conformity_neighbourhood_types = assume that neighbourhood can change with time
+	// if only in a limited way, then we need to rewrite this part.
+	make_conformity_levels(params.conformity_conformitylevel_type,params.confomitylevel_parameter);
+	// conformism
+	make_conformists(params.conformity_conformists, params.conformists_parameter);
+}
 vector<int> Conformity::loadssfromfile(const char *filename){
 	ifstream myfile;
 	vector<int> a;
@@ -389,6 +453,49 @@ void Conformity::construct_reachability_matrix (int radius){
 		}
 	}	
 	Reachability=t;
+}
+void Conformity::make_weights_matrix(Conformity_weights conformity_weights, int weights_radius){
+	construct_reachability_matrix(weights_radius);
+	vector<int> t;
+	if (conformity_weights == Conformity_weights::Weights_at_random){
+		int RM=RAND_MAX;
+		srand (time(NULL));
+		for(int i=0;i<Reachability.size();i++){
+			if (Reachability[i]==0) {
+				t.push_back(0);
+			}
+			else {
+				t.push_back((int)(rand()*(weights_radius-1)/RM+1));	
+			}		
+		}	
+	}
+	if (conformity_weights == Conformity_weights::Weights_Decrease_with_distance){
+		for(int i=0;i<Reachability.size();i++){
+			if (Reachability[i]==0) {
+				t.push_back(0);
+			}
+			else {
+				if ((weights_radius - Reachability[i]+1)>0){
+					t.push_back(weights_radius -Reachability[i]+1);
+				}
+				else{t.push_back(0);}
+			}		
+		}	
+	}
+	if (conformity_weights == Conformity_weights::Weights_Increase_with_distance){
+		for(int i=0;i<Reachability.size();i++){
+			if (Reachability[i]==0) {
+				t.push_back(0);
+			}
+			else {
+				if ((Reachability[i]>0)&&(Reachability[i]<=weights_radius)){
+					t.push_back(Reachability[i]);
+				}
+				else{t.push_back(0);}
+			}		
+		}	
+	}
+	WeightedMatrix=t;
 }
 void Conformity::construct_weights_matrix (int radius){
 	if (Reachability.size()==0)exit;
@@ -755,17 +862,116 @@ void Conformity::GNPgraph(double p, int n){
 	nVars=n;
 	nClauses=0;
 	for (int i=0;i<n;i++){
-	for (int j=0;j<n;j++){
-	Matrix.push_back(0);
-	}	
+		for (int j=0;j<n;j++){
+			Matrix.push_back(0);
+		}	
 	}
 	int RM=RAND_MAX;
 	srand (time(NULL));
 	for (int i=0;i<n;i++){
-	for (int j=0;j<n;j++){
-	//for (int j=i+1;jn;j++){
-	if ((i!=j)&&(rand()<(p*RM))){Matrix[i*n+j]=1;} 	
+		for (int j=0;j<n;j++){
+		//for (int j=i+1;jn;j++){
+			if ((i!=j)&&(rand()<(p*RM))){Matrix[i*n+j]=1;} 	
+		}
 	}
+}
+void Conformity::WSgraph (int n, int k, double prob){
+	vector<int>wsmatrix;
+	//construct a regular ring
+	for (int i=0;i<n;i++){
+		for (int j=0;j<n;j++){
+			int tmp;
+			tmp=abs(i-j)%(n-(k/2));
+			if ((tmp>=0)&&(tmp<=k/2)) {
+				wsmatrix.push_back(rand()%3+1);
+			}
+			else {
+				wsmatrix.push_back(0);
+			}
+		}
+	}	
+	//ring ready in theory..
+	for (int i=0;i<n;i++){
+		cout<<endl;
+		for (int j=0;j<n;j++){
+			cout<<wsmatrix[i*n+j]<<" ";
+		}
+	}
+	
+	int RM=RAND_MAX;
+	srand (time(NULL));
+//	cout<<endl<<"Number of 1s is " << countones(Matrix)<<endl;
+	//here we should morph the ring to something..
+	vector<int>newmatrix;
+	for (int i=0;i<dimension;i++){
+		for (int j=0;j<dimension;j++){
+			newmatrix.push_back(wsmatrix[i*dimension+j]);
+		}
+	}
+	
+	for (int i=0;i<dimension;i++){
+		for (int j=0;j<dimension;j++){
+		    if ((wsmatrix[i*dimension+j]==1)&&(rand()<prob*RM)){
+				//rewire to any other vertex with uniform distribution, apparently
+				bool b=false;
+				while (!b){
+					int tmp = rand()%dimension;
+					if ((newmatrix[i*dimension+tmp]==0)&&(tmp!=i)){
+						newmatrix[i*dimension+tmp]=newmatrix[i*dimension+j];
+						newmatrix[i*dimension+j]=0;						
+						b=true;
+					}
+				}
+			}
+		}
+	}
+
+	cout<<endl;
+	Matrix=newmatrix;
+
+	for (int i=0;i<dimension;i++){
+		cout<<endl;
+		for (int j=0;j<dimension;j++){
+			cout<<Matrix[i*dimension+j]<<" ";
+		}
+	}	
+}
+void Conformity::make_conformity_levels(Conformity_conformitylevel_type conformity_type, double conformity_parameter){
+	if ((conformity_parameter>1)||(conformity_parameter<0)) exit;
+	int RM=RAND_MAX;
+	srand (time(NULL));
+	for (int i=0;i<dimension;i++){
+		int t=0;
+		for (int j=0;j<dimension;j++){
+			t+=WeightedMatrix[j*dimension+i];
+		}
+		if (conformity_type == Conformity_conformitylevel_type::RandomConformityLevel){
+			conformitylevel.push_back(rand()*t/RM);		
+			if (conformitylevel[i]==0){conformitylevel[i]=1;}
+			//cout<<"degree = "<<t<<", CLevel= "<<conformitylevel[i]<<endl;
+		}
+		else if (conformity_type == Conformity_conformitylevel_type::ThresholdConformityLevel){
+			conformitylevel.push_back(t*conformity_parameter+1);
+		}	
+	}
+}
+void Conformity::make_conformists(Conformity_conformists conformists_type, double conformists_parameter){
+	
+	if (conformists_type==Conformity_conformists::ConformistsOnly){
+		for (int i=0;i<dimension;i++){
+			conformism.push_back(1);
+		}
+	}
+	if (conformists_type==Conformity_conformists::NonConformistsOnly){
+		for (int i=0;i<dimension;i++){
+			conformism.push_back(0);
+		}
+	}
+	if (conformists_type==Conformity_conformists::MixedConformists){
+		int RM=RAND_MAX;
+		for (int i=0;i<dimension;i++){
+			if (rand()<(conformists_parameter*RM)){conformism.push_back(1);} else {conformism.push_back(0);}
+		}		
 	}
 }
 int Conformity::initializeconformity (double percent, double prob){
@@ -955,10 +1161,7 @@ void Conformity::generalfunctioning( int step, bool agitated, bool loyaled, bool
 		for (int i=0;i<dimension;i++){//vertices
 			//build the neighbours list for the i-th vertex;
 			vector<int> neighbours;
-			for (int j=0;j<dimension;j++){
-				//wrong order. Adjacency matrix is constructed vice versa
-				if (matrixelement(i,j)==1){neighbours.push_back(j);}	
-			}
+			neighbours=construct_neighbourhood(i);
 			//count "1s" in this list
 			//to do this we should add to the list variables (meaningless) that are equal to 0s from the start
 			// for sorting nets technique to be sound and correct
@@ -968,14 +1171,14 @@ void Conformity::generalfunctioning( int step, bool agitated, bool loyaled, bool
 			for (int v=0;v<neighbours.size();v++){tobesorted.push_back((k+2)*dimension+neighbours[v]+1);}
 			for (int v=neighbours.size();v<hcnt;v++){tobesorted.push_back(nzero);}
 			if (tobesorted.size()==0){cout<<endl<<"ALARM ALARM ALARM!!!"<<endl;}
-				vector<int> sorted;
-				if (tobesorted.size()>1){
+			vector<int> sorted;
+			if (tobesorted.size()>1){
 				sorted=HSort(tobesorted,hcnt);	
 			}
 			else 
-				{
-					sorted=tobesorted;
-				}
+			{
+				sorted=tobesorted;
+			}
 			//if (sorted.size()<=conformitylevel[i]){
 			//	cout<<endl<<"Sorted size "<<sorted.size()<<" is leq than conf_level "<<conformitylevel[i]<<" for "<<i<<"-th vertex!!! "<<endl;
 			//	}
@@ -1108,7 +1311,7 @@ void Conformity::Print(const char *fn){
 	cout<<endl<<"Output finished"<<endl;
 }
 void Conformity::Dump(char *fn){
-	ofstream out;
+	ofstream out;  
 	out.open(fn,ios::app);
 	for (int i=0;i<M.size();i++){
 	int *t=M[i];
