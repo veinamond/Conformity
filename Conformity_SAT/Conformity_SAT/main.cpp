@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <Windows.h>
 using namespace std;
-enum class Conformity_problem {Simple, Agitated, Loyal_VS_Agit, Loyal_VS_Agit_delayed, Undefined};
+enum class Conformity_problem_type {Simple, Agitated, Loyal_VS_Agit, Loyal_VS_Agit_delayed, Undefined};
 enum class Conformity_graph {GNP_Graph, WS_Graph};
 enum class Conformity_conformitylevel_type {ThresholdConformityLevel, RandomConformityLevel};
 enum class Conformity_conformists {ConformistsOnly, NonConformistsOnly, MixedConformists};
@@ -17,6 +17,66 @@ enum class Conformity_weights {Weights_at_random, Weights_Decrease_with_distance
 enum class Conformity_neighbourhood_type {AlwaysFullNeighborhood,From_Small_to_Big, From_Big_to_Small};
 enum class Conformity_At_Start {GEQStart,LEQStart, Undefined};
 enum class Conformity_At_End {GEQEnd,LEQEnd,Undefined};
+
+class Conformity_problem{
+public:
+	Conformity_problem (Conformity_problem_type p_t, int startvalue, int endvalue, int nofagit, int nofloyal){
+		conformity_problem_type=p_t;
+		Start_Value_Percent=startvalue;
+		End_Value_Percent=endvalue;
+		Number_of_agitators=nofagit;
+		Number_of_loyalists=nofloyal;
+		if (p_t==Conformity_problem_type::Simple){
+			Hasagitators=false;
+			Hasloyalists=false;
+			conformity_at_start=Conformity_At_Start::LEQStart;
+			conformity_at_end=Conformity_At_End::GEQEnd;
+			conformity_restrictions = Conformity_restrictions::Restrict_nothing;
+		}
+		if (p_t==Conformity_problem_type::Agitated){
+			Hasagitators=true;
+			Hasloyalists=false;
+			conformity_at_start=Conformity_At_Start::LEQStart;
+			conformity_at_end=Conformity_At_End::GEQEnd;
+			conformity_restrictions = Conformity_restrictions::Restrict_to_inactive;// only agitators are active
+		}
+		if (p_t==Conformity_problem_type::Loyal_VS_Agit){
+			Hasagitators=true;
+			Hasloyalists=true;
+			conformity_at_start=Conformity_At_Start::Undefined;
+			conformity_at_end=Conformity_At_End::Undefined;
+			conformity_restrictions = Conformity_restrictions::Restrict_to_inactive; // only agitators are active
+		}
+		if (p_t==Conformity_problem_type::Loyal_VS_Agit_delayed){
+			Hasagitators=true;
+			Hasloyalists=true;
+			conformity_at_start=Conformity_At_Start::GEQStart;
+			conformity_at_end=Conformity_At_End::LEQEnd;
+			conformity_restrictions = Conformity_restrictions::Restrict_to_active; //only loyalists are inactive
+		}
+		if (p_t==Conformity_problem_type::Undefined){
+			Hasagitators=true;
+			Hasloyalists=true;
+			conformity_at_start=Conformity_At_Start::Undefined;
+			conformity_at_end=Conformity_At_End::Undefined;
+			conformity_restrictions = Conformity_restrictions::Restrict_nothing;
+		}
+	}
+	Conformity_restrictions conformity_restrictions;
+	Conformity_problem_type conformity_problem_type;
+	Conformity_At_Start conformity_at_start;
+	int Start_Value_Percent;
+	Conformity_At_End conformity_at_end;
+	int End_Value_Percent;
+
+	bool Hasagitators;
+	bool Hasloyalists;
+	int Number_of_agitators;
+	int Number_of_loyalists;
+	int Neighbourhood_radius;
+
+};
+
 class Conformity_Parameters{
 public:
 	int dimension;//number of vertices in graph
@@ -29,14 +89,10 @@ public:
 	double confomitylevel_parameter; // threshold or leq.
 	Conformity_conformists conformity_conformists;
 	double conformists_parameter; // probability of "Conformists"
-	Conformity_restrictions conformity_restrictions;
+	
 	Conformity_weights conformity_weights;
 	int Weights_radius;
-	Conformity_neighbourhood_type conformity_neighbourhood_type;
-	Conformity_At_Start conformity_at_start;
-	int Start_Value;
-	Conformity_At_End conformity_at_end;
-	int End_Value;
+	Conformity_neighbourhood_type conformity_neighbourhood_type;	
 };
 
 stringstream logstream;
@@ -56,7 +112,6 @@ string inttostr(int number)
    return ss.str();//return a string with the contents of the stream
 }
 class Conformity{
-	
 private:
 	vector <int*> M;
 	vector <int> Matrix;
@@ -90,16 +145,16 @@ public:
 		Mstream.str(std::string());
 
 	}
-	vector<int> Sort(vector<int> a, int nV, int n){
-	//nVars=nV;
-	return HSort(a,n);
-	}
+
 	void GNPgraph(double p, int n);
 	void WSgraph(int n, int k, double p);
+
 	void make_conformity_levels(Conformity_conformitylevel_type conformity_type, double conformity_parameter);
 	void make_conformists(Conformity_conformists conformists_type, double conformists_parameter);
 	void make_weights_matrix(Conformity_weights conformity_weights, int weights_radius);
 	int initializeconformity (double percent, double prob);
+
+
 	vector <int> Row (int i);
 	vector <int> Column (int j);
 	int matrixelement(int i, int j){
@@ -119,31 +174,44 @@ public:
 	}
 	void construct_reachability_matrix (int radius);
 	void construct_weights_matrix (int radius);
+	vector<int> construct_neighbourhood(int i, int radius);
+	
+	vector<int> Sort(vector<int> a, int nV, int n){
+	//nVars=nV;
+	return HSort(a,n);
+	}
 	vector <int> HMerge (vector<int> &a, vector<int> &b, int n);
 	vector <int> HSort (vector<int>& a, int n);
 	vector <int> SHSort (vector<int> a, int lown, int n);
 	vector <int> SMerge (vector<int> a, vector <int> b, int n);
 	vector <int> Selectodd(vector<int> a);
 	vector <int> Selecteven(vector<int> a);
-	bool calculate(vector<int> inp, int stepm);
-	bool calculate(vector<int> inp, int stepm, string filename);
-	void loadmatrixfromfile(int n, const char * filename);
-	void savematrixtofile(const char * filename);
-	void savematrixtofile_gv(const char * filename);
-	void seqcounter(vector<int> a);
 	void onlyonesimple(vector<int> t);
 	void onlyonecomplex(vector<int> t);
 	void Newvareqor(int nv, vector<int> right);	
-	void printprogresstofile_gv(vector<int>agitators, vector<int> loyalists, vector<int> activity, const char *filename);
-	void equalize(vector<int>r1, vector<int>r2);
-	vector<int> vecnewvareqand(const vector<int> r1, const vector<int>r2);
-	vector<int> construct_neighbourhood(int i);
 	vector<int> vecnewvareqor(const vector<int> r1, const vector<int>r2);
 	void Newvareqand(int nv, vector<int> right);
+	vector<int> vecnewvareqand(const vector<int> r1, const vector<int>r2);
+	void equalize(vector<int>r1, vector<int>r2);
+	void seqcounter(vector<int> a);
+
+	bool calculate(vector<int> inp, int stepm);
+	bool calculate(vector<int> inp, int stepm, string filename);
+	
+	bool calculate(vector<int> inp, Conformity_Parameters conf_params, Conformity_problem conf_problem, bool verbosity, string filename);
+	
+	void loadmatrixfromfile(int n, const char * filename);
+	void savematrixtofile(const char * filename);
+	void savematrixtofile_gv(const char * filename);
+	
+	void printprogresstofile_gv(vector<int>agitators, vector<int> loyalists, vector<int> activity, const char *filename);
 	void Print (const char * fn);
 	void Printmatrix();
+	
 	void functioning( int step, bool agitated);
 	void generalfunctioning( int step, bool agitated, bool loyaled, bool strict);
+	void generalfunctioning(Conformity_problem c_p);
+
 	void Notmoreatstart(int n, bool agitators, bool loyalists);
 	void Notlessatend(int n);
 	void Notmoreatend(int n);
@@ -164,6 +232,7 @@ Conformity::Conformity(Conformity_Parameters params){
 	nClauses=0;
 	dimension=params.dimension;
 	nofsteps=params.number_of_steps;
+
 	//graph structure
 	if (params.conformity_graph==Conformity_graph::GNP_Graph){
 		GNPgraph(params.graph_parameter_1,params.dimension);
@@ -171,12 +240,15 @@ Conformity::Conformity(Conformity_Parameters params){
 	else if (params.conformity_graph==Conformity_graph::WS_Graph){
 		WSgraph(params.dimension,params.graph_parameter_2,params.graph_parameter_1);
 	}
+
 	//weights_matrix 
 	make_weights_matrix(params.conformity_weights,params.Weights_radius);
+	
 	//conformity levels
 	//when we introduce conformity_neighbourhood_types = assume that neighbourhood can change with time
 	// if only in a limited way, then we need to rewrite this part.
 	make_conformity_levels(params.conformity_conformitylevel_type,params.confomitylevel_parameter);
+	
 	// conformism
 	make_conformists(params.conformity_conformists, params.conformists_parameter);
 }
@@ -520,11 +592,13 @@ void Conformity::construct_weights_matrix (int radius){
 	}
 	WeightedMatrix=t;
 }
-vector<int> Conformity::construct_neighbourhood(int i){
+vector<int> Conformity::construct_neighbourhood(int i, int radius){
 	vector<int> res;
 	for (int j=0;j<dimension;j++){
-			for (int h=0;h<WeightedMatrix[j*dimension+i];h++){
-				res.push_back(j);
+			if (WeightedMatrix[j*dimension+i]<=radius){
+				for (int h=0;h<WeightedMatrix[j*dimension+i];h++){
+					res.push_back(j);
+				}
 			}
 		}
 	return res;	
@@ -736,6 +810,120 @@ bool Conformity::calculate(vector<int> inp, int step, string filename){
 	}
 	return a;
 }
+
+bool Conformity::calculate(vector<int> inp, Conformity_Parameters conf_params, Conformity_problem conf_problem, bool verbosity, string filename){
+	vector<int> agitators;
+	vector<int> loyalists;
+	vector<int> curstep;
+	vector<int> nextstep;
+	string tmpprogress=filename;
+	bool a = true;
+	for (int i = 0; i<dimension; i++){
+		agitators.push_back(inp[i]);
+		loyalists.push_back(inp[dimension + i]);
+		curstep.push_back(inp[dimension * 2 + i]);
+	}
+	if (verbosity==true) {
+		cout << endl << "Agitators" << endl;
+		logstream << endl << "Agitators" << endl;
+		for (int d = 0; d<dimension; d++){
+			cout << agitators[d] << " ";
+			logstream << agitators[d] << " ";
+		}
+		cout << endl << "loyalists" << endl;
+		logstream << endl << "loyalists" << endl;
+		for (int d = 0; d<dimension; d++){
+			cout << loyalists[d] << " ";
+			logstream << loyalists[d] << " ";
+		}
+	}
+	for (int i = 0; i<dimension; i++){
+		Curagit.push_back(agitators[i]);
+		Curloyal.push_back(loyalists[i]);
+	}
+	//curstep=inp;
+	if (verbosity==true){
+		cout << endl << "Step 0" << endl;
+		logstream << endl << "Step 0" << endl;
+		for (int d = 0; d<dimension; d++){
+			cout << curstep[d] << " ";
+			logstream << curstep[d] << " ";			
+		}
+		string tmp = tmpprogress + "_0.txt";
+		printprogresstofile_gv(agitators, loyalists, curstep, tmp.c_str());
+		logstream << endl;
+		cout << endl;
+	}
+	for (int k = 0; k<conf_params.number_of_steps; k++){
+		nextstep.clear();
+		for (int i = 0; i<dimension; i++){
+			int cursum = 0;
+			int deg = 0;
+			for (int j = 0; j<dimension; j++){
+				deg += WeightedMatrix[i*dimension+j];
+			}
+			for (int j = 0; j<dimension; j++){
+				if ((curstep[j] == 1)) cursum+=WeightedMatrix[i*dimension+j];
+				//if ((matrixelement(i, j) == 1) && (curstep[i] == 1)) cursum++;
+			}
+			if (conformism[i] == 1){
+				if (agitators[i] == 1){ nextstep.push_back(1); }
+				else{
+					if (loyalists[i] == 1){
+						nextstep.push_back(0);
+					}
+					else
+					{
+						if (cursum >= conformitylevel[i]){ nextstep.push_back(1); }
+						else { nextstep.push_back(0); }
+					}
+				}
+			}
+			else {
+				if (agitators[i] == 1){ nextstep.push_back(1); }
+				else{
+					if (loyalists[i] == 1){
+						nextstep.push_back(0);
+					}
+					else {
+						if (cursum <= deg - conformitylevel[i]){ nextstep.push_back(1); }
+						else { nextstep.push_back(0); }
+					}
+				}
+			}
+		}
+
+		curstep = nextstep;
+		bool b = true;
+		for (int i = 0; i<dimension; i++){
+			if (curstep[i] != inp[(2 + k + 1)*dimension + i]){
+				cout << endl << "Correctness on step " << k + 1 << " point  " << i << " is failed" << endl;
+				logstream << endl << "Correctness on step " << k + 1 << " point  " << i << " is failed" << endl;
+				b = false;
+				a = false;
+			}
+		}
+		if (verbosity==true){
+			string tmp = tmpprogress + "_"+inttostr(k+1)+".txt";
+			printprogresstofile_gv(agitators, loyalists, curstep, tmp.c_str());
+
+			cout << endl << "Step " << k + 1 << endl;
+			logstream << endl << "Step " << k + 1 << endl;
+			for (int d = 0; d<dimension; d++){
+				cout << curstep[d] << " ";
+				logstream << curstep[d] << " ";
+			}
+			cout << endl;
+			logstream << endl;
+		}
+		if (b == true){
+			cout << endl << "Step " << k + 1 << " is correct" << endl;
+			logstream << endl << "Step " << k + 1 << " is correct" << endl;
+		}
+	}
+	return a;	
+}
+
 void Conformity::Notmoreatstart(int n, bool agitators, bool loyalists){
 	
 	const int nzero=++nVars; //zero variable
@@ -780,7 +968,7 @@ void Conformity::Notlessatend(int n){
 	Mstream<<tmp[0]<<" "<<tmp[1]<<endl;
 	nClauses++;
 	for (int i=0;i<dimension;i++){
-	tobesorted.push_back(dimension*(nofsteps+2)+i+1);
+		tobesorted.push_back(dimension*(nofsteps+2)+i+1);
 	}
 	int hcnt=twoceil(tobesorted.size());
 	for (int i=tobesorted.size();i<hcnt;i++){tobesorted.push_back(nzero);}
@@ -804,7 +992,7 @@ void Conformity::Notmoreatend(int n){
 	Mstream<<tmp[0]<<" "<<tmp[1]<<endl;
 	nClauses++;
 	for (int i=0;i<dimension;i++){
-	tobesorted.push_back(dimension*(nofsteps+2)+i+1);
+		tobesorted.push_back(dimension*(nofsteps+2)+i+1);
 	}
 	int hcnt=twoceil(tobesorted.size());
 	for (int i=tobesorted.size();i<hcnt;i++){tobesorted.push_back(nzero);}
@@ -1124,7 +1312,7 @@ void Conformity::onlyonecomplex(vector<int> t){//not modified for stringstream
 	}
 }
 
-void Conformity::generalfunctioning( int step, bool agitated, bool loyaled, bool strict){
+void Conformity::generalfunctioning(int step, bool agitated, bool loyaled, bool strict){
 	Mstream.clear();
 	nofsteps=step;
 	nVars = (step+3)*dimension; // reserve first variables to be something meaningful
@@ -1161,7 +1349,7 @@ void Conformity::generalfunctioning( int step, bool agitated, bool loyaled, bool
 		for (int i=0;i<dimension;i++){//vertices
 			//build the neighbours list for the i-th vertex;
 			vector<int> neighbours;
-			neighbours=construct_neighbourhood(i);
+			neighbours=construct_neighbourhood(i,1);
 			//count "1s" in this list
 			//to do this we should add to the list variables (meaningless) that are equal to 0s from the start
 			// for sorting nets technique to be sound and correct
@@ -1240,6 +1428,143 @@ void Conformity::generalfunctioning( int step, bool agitated, bool loyaled, bool
 			}	
 	}
 }
+
+
+
+void Conformity::generalfunctioning(Conformity_problem c_p){
+	Mstream.clear();
+	nVars = (nofsteps+3)*dimension; // reserve first variables to be something meaningful
+	const int nzero=++nVars; //zero variable
+	Mstream<<-nzero<<" 0"<<endl;
+	nClauses++;
+
+	vector<int> agitators;
+	vector<int> loyalists;
+	vector<int> firststep;
+
+	for (int i=0;i<dimension;i++){
+		agitators.push_back(i+1);
+		loyalists.push_back(-(dimension+i+1)); //notice the minus!!!
+		firststep.push_back(dimension*2+i+1);
+	}
+
+	bool agitated=c_p.Hasagitators; // true if we have agitators
+	bool loyaled=c_p.Hasloyalists;  // true if we have loyalists
+	bool strict; // true if say only agitators should be active
+
+	vector<int> curstep_vars;
+	//zero step = initialization required if agitated or loyaled !=0
+	//we also need to restrict simultaneous agitation and loyalization, do we?
+
+	for (int i=0;i<dimension;i++){
+		if (agitated && loyaled ) {	Mstream<<-agitators[i]<<" "<<loyalists[i]<<" 0"<<endl; } //restriction
+		
+		if (agitated){
+			Mstream<<-agitators[i]<<" "<<firststep[i]<<" 0"<<endl;
+			if (c_p.conformity_restrictions==Conformity_restrictions::Restrict_to_inactive){
+					Mstream<<agitators[i]<<" "<<-firststep[i]<<" 0"<<endl;
+			}
+		}// if agitated then 1
+		if (loyaled ){
+			Mstream<<loyalists[i]<<" "<<-firststep[i]<<" 0"<<endl;
+			if (c_p.conformity_restrictions==Conformity_restrictions::Restrict_to_active){
+				Mstream<<-loyalists[i]<<" "<<firststep[i]<<" 0"<<endl;
+			}
+			//if (strict){Mstream<<-loyalists[i]<<" "<<firststep[i]<<" 0"<<endl;}
+		}// if loyaled then 0
+	}
+ 	for (int k=0;k<nofsteps;k++){//steps
+		curstep_vars.clear();
+		for (int i=0;i<dimension;i++){//vertices
+			//build the neighbours list for the i-th vertex;
+			vector<int> neighbours;
+			neighbours=construct_neighbourhood(i,c_p.Neighbourhood_radius);
+			//count "1s" in this list
+			//to do this we should add to the list variables (meaningless) that are equal to 0s from the start
+			// for sorting nets technique to be sound and correct
+			int neighbourssize=neighbours.size();	
+			int hcnt=twoceil(neighbours.size());
+			vector<int> tobesorted;
+			for (int v=0;v<neighbours.size();v++){tobesorted.push_back((k+2)*dimension+neighbours[v]+1);}
+			for (int v=neighbours.size();v<hcnt;v++){tobesorted.push_back(nzero);}			
+			vector<int> sorted;
+			if (tobesorted.size()>1){
+				sorted=HSort(tobesorted,hcnt);	
+			}
+			else 
+			{
+				sorted=tobesorted;
+			}
+			//here conformism starts to mean something
+			// if vertex is conformist (conformism[i]=1) then it does what all do
+			// otherwise it does just the opposite, meaning that if the majority makes decision to do a Thing
+			// this vertex does not.
+			int newvarnum=0;
+			if (conformism[i]==1){	
+				newvarnum=sorted[conformitylevel[i]-1];
+			}
+			else {
+				//if (neighbourssize<=conformitylevel[i]){cout<<"PROBLEM HERE "<<endl;}
+				newvarnum=-sorted[neighbourssize-conformitylevel[i]];
+			}
+			curstep_vars.push_back(newvarnum);
+			neighbours.clear();
+			sorted.clear();
+			sorted.~vector();
+			tobesorted.clear();
+			tobesorted.~vector();
+			
+		}	
+		vector<int>newstep;
+		for (int l=0;l<dimension;l++){
+			newstep.push_back(dimension*(k+1+2)+l+1);
+		}
+		if (!agitated&&!loyaled){
+			equalize(newstep,curstep_vars);
+		}
+		else 
+		if (agitated&&!loyaled){
+			vector<int>tmpvars=vecnewvareqor(agitators,curstep_vars);
+			equalize(newstep,tmpvars);
+		}
+		else 
+		if (!agitated&&loyaled){
+			vector<int> tmpvars2=vecnewvareqand(loyalists,curstep_vars);
+			equalize(newstep,tmpvars2);
+		}
+		else
+			if (agitated&&loyaled){
+				vector<int>tmpvars=vecnewvareqor(agitators,curstep_vars);
+				vector<int> tmpvars2=vecnewvareqand(loyalists,tmpvars);
+				equalize(newstep,tmpvars2);
+			}	
+	}
+
+	int at_start=dimension*c_p.Start_Value_Percent/100;
+	int at_end=dimension*c_p.End_Value_Percent/100;
+
+	if (c_p.conformity_at_start==Conformity_At_Start::GEQStart){
+		
+	}
+	else if (c_p.conformity_at_start==Conformity_At_Start::LEQStart){
+		Notmoreatstart(at_start,0,0);
+		if (agitated==true){
+			Notmoreatstart(c_p.Number_of_agitators,1,0);
+		}
+		if (loyaled==true){
+			Notmoreatstart(c_p.Number_of_loyalists,0,1);
+		}
+	}
+	
+	if (c_p.conformity_at_end==Conformity_At_End::GEQEnd){
+		Notlessatend(at_end);
+	}
+	else if (c_p.conformity_at_end==Conformity_At_End::LEQEnd){
+		Notmoreatend(at_end);
+	}
+}
+
+
 void Conformity::functioning(int step, bool agitated){
 	nofsteps=step;
 	nVars = (step+1)*dimension; // reserve first variables to be something meaningful
