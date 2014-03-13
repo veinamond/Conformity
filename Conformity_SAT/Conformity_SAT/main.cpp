@@ -20,12 +20,14 @@ enum class Conformity_At_End {GEQEnd,LEQEnd,Undefined};
 
 class Conformity_problem{
 public:
-	Conformity_problem (Conformity_problem_type p_t, int startvalue, int endvalue, int nofagit, int nofloyal){
+	Conformity_problem();
+	Conformity_problem (Conformity_problem_type p_t, int startvalue, int endvalue, int nofagit, int nofloyal, int neighbourhood_radius){
 		conformity_problem_type=p_t;
 		Start_Value_Percent=startvalue;
 		End_Value_Percent=endvalue;
 		Number_of_agitators=nofagit;
 		Number_of_loyalists=nofloyal;
+		Neighbourhood_radius=neighbourhood_radius;
 		if (p_t==Conformity_problem_type::Simple){
 			Hasagitators=false;
 			Hasloyalists=false;
@@ -76,9 +78,18 @@ public:
 	int Neighbourhood_radius;
 
 };
-
+Conformity_problem::Conformity_problem(){
+	Start_Value_Percent=0;
+	End_Value_Percent=0;
+	Hasagitators=false;
+	Hasloyalists=false;
+	Number_of_agitators=0;
+	Number_of_loyalists=0;
+	Neighbourhood_radius=0;
+}
 class Conformity_Parameters{
 public:
+	Conformity_Parameters();
 	int dimension;//number of vertices in graph
 	int number_of_steps;
 	Conformity_problem conformity_problem;
@@ -94,7 +105,15 @@ public:
 	int Weights_radius;
 	Conformity_neighbourhood_type conformity_neighbourhood_type;	
 };
-
+Conformity_Parameters::Conformity_Parameters(){
+		dimension=0;
+		number_of_steps=0;
+		graph_parameter_1=0;
+		graph_parameter_2=0;
+		confomitylevel_parameter=0;
+		conformists_parameter=0;
+		Weights_radius=0;
+}
 stringstream logstream;
 int strtoi(string s){
 	int x = atoi(s.c_str());
@@ -567,6 +586,14 @@ void Conformity::make_weights_matrix(Conformity_weights conformity_weights, int 
 			}		
 		}	
 	}
+	cout<<endl<<"Weights matrix "<<endl;
+	for (int i=0;i<dimension;i++){
+		for (int j=0;j<dimension;j++){
+			cout<<t[i*dimension+j]<<" ";
+		}
+		cout<<endl;
+	}
+
 	WeightedMatrix=t;
 }
 void Conformity::construct_weights_matrix (int radius){
@@ -860,10 +887,10 @@ bool Conformity::calculate(vector<int> inp, Conformity_Parameters conf_params, C
 			int cursum = 0;
 			int deg = 0;
 			for (int j = 0; j<dimension; j++){
-				deg += WeightedMatrix[i*dimension+j];
+				deg += WeightedMatrix[j*dimension+i];
 			}
 			for (int j = 0; j<dimension; j++){
-				if ((curstep[j] == 1)) cursum+=WeightedMatrix[i*dimension+j];
+				if ((curstep[j] == 1)) cursum+=WeightedMatrix[j*dimension+i];
 				//if ((matrixelement(i, j) == 1) && (curstep[i] == 1)) cursum++;
 			}
 			if (conformism[i] == 1){
@@ -1062,6 +1089,13 @@ void Conformity::GNPgraph(double p, int n){
 			if ((i!=j)&&(rand()<(p*RM))){Matrix[i*n+j]=1;} 	
 		}
 	}
+	cout<<endl<<"Graph matrix "<<endl;
+	for (int i=0;i<dimension;i++){
+		for (int j=0;j<dimension;j++){
+			cout<<Matrix[i*dimension+j]<<" ";
+		}
+		cout<<endl;
+	}
 }
 void Conformity::WSgraph (int n, int k, double prob){
 	vector<int>wsmatrix;
@@ -1123,16 +1157,29 @@ void Conformity::WSgraph (int n, int k, double prob){
 			cout<<Matrix[i*dimension+j]<<" ";
 		}
 	}	
+	cout<<endl<<"Graph matrix "<<endl;
+	for (int i=0;i<dimension;i++){
+		for (int j=0;j<dimension;j++){
+			cout<<Matrix[i*dimension+j]<<" ";
+		}
+		cout<<endl;
+	}
 }
 void Conformity::make_conformity_levels(Conformity_conformitylevel_type conformity_type, double conformity_parameter){
 	if ((conformity_parameter>1)||(conformity_parameter<0)) exit;
 	int RM=RAND_MAX;
 	srand (time(NULL));
+	
+	cout<<endl<<"Vertex degrees"<<endl;
+	
 	for (int i=0;i<dimension;i++){
 		int t=0;
 		for (int j=0;j<dimension;j++){
 			t+=WeightedMatrix[j*dimension+i];
 		}
+
+		cout<<t<<" ";
+
 		if (conformity_type == Conformity_conformitylevel_type::RandomConformityLevel){
 			conformitylevel.push_back(rand()*t/RM);		
 			if (conformitylevel[i]==0){conformitylevel[i]=1;}
@@ -1141,6 +1188,10 @@ void Conformity::make_conformity_levels(Conformity_conformitylevel_type conformi
 		else if (conformity_type == Conformity_conformitylevel_type::ThresholdConformityLevel){
 			conformitylevel.push_back(t*conformity_parameter+1);
 		}	
+	}
+	cout<<endl<<"Conformity levels "<<endl;
+	for (int i=0;i<dimension;i++){
+		cout<<conformitylevel[i]<<" ";
 	}
 }
 void Conformity::make_conformists(Conformity_conformists conformists_type, double conformists_parameter){
@@ -1160,6 +1211,10 @@ void Conformity::make_conformists(Conformity_conformists conformists_type, doubl
 		for (int i=0;i<dimension;i++){
 			if (rand()<(conformists_parameter*RM)){conformism.push_back(1);} else {conformism.push_back(0);}
 		}		
+	}
+	cout<<endl<<"Conformists"<<endl;
+	for (int i=0;i<dimension;i++){
+		cout<<conformism[i]<<" ";
 	}
 }
 int Conformity::initializeconformity (double percent, double prob){
@@ -2634,12 +2689,61 @@ int checktests(int noftests, int dimension, int step, double gnpprob, double con
 	return 1;
 }
 int main (){
-	Conformity a;
-	a.GNPgraph(0.4,10);
-	a.initializeconformity(0,0);
-	a.Printmatrix();
-	a.construct_reachability_matrix(3);
-	a.construct_weights_matrix(2);
+	Conformity_Parameters p;
+	p.dimension=100;
+	p.number_of_steps=10;
+	p.conformity_graph=Conformity_graph::GNP_Graph;
+	p.graph_parameter_1=0.3;
+	p.graph_parameter_2=4;
+	p.conformity_conformitylevel_type=Conformity_conformitylevel_type::RandomConformityLevel;
+	p.confomitylevel_parameter=0;
+	p.conformity_conformists=Conformity_conformists::ConformistsOnly;
+	p.conformity_weights=Conformity_weights::Weights_Decrease_with_distance;
+	p.conformists_parameter=0;
+	p.Weights_radius=2;
+	p.conformity_neighbourhood_type=Conformity_neighbourhood_type::AlwaysFullNeighborhood;
+		
+	Conformity a(p);
+	int agitators_percent=20;
+	int loyalists_percent=30;
+
+	Conformity_problem simple_problem(Conformity_problem_type::Simple, 30, 80, 0, 0, p.Weights_radius);
+	Conformity_problem agitated(Conformity_problem_type::Agitated, 20, 80, p.dimension*agitators_percent/100, 0, p.Weights_radius);
+
+	//for these two problems we actually need the agitators configuration obtained from some previous work. so....
+
+	Conformity_problem loyaled_vs_agit(Conformity_problem_type::Loyal_VS_Agit, 20, 80, p.dimension*agitators_percent/100, p.dimension*loyalists_percent/100, p.Weights_radius);
+	Conformity_problem loyaled_vs_agit_delayed(Conformity_problem_type::Loyal_VS_Agit_delayed, 20, 80, p.dimension*agitators_percent/100, p.dimension*loyalists_percent/100, p.Weights_radius);
+	//need to resolve asap.
+
+	string cnfinputfilename="D:\\tests\\Conformity\\test1.cnf";
+	a.generalfunctioning(agitated);
+	a.Print(cnfinputfilename.c_str());
+
+	string cnfoutputfilename="D:\\tests\\Conformity\\test1.out";
+	string cryptolog="D:\\tests\\Conformity\\crypto.log";
+	string tempprogress = "D:\\tests\\Conformity\\test1_tempprogress.out";
+
+	string cryptominisat_call= "D:\\tests\\Conformity\\cryptominisat32.exe "+cnfinputfilename+" "+cnfoutputfilename +" > "+cryptolog;
+	system(cryptominisat_call.c_str());
+	vector<int> e = a.loadssfromfile(cnfoutputfilename.c_str());
+		if (e.size()==0){
+			cout<<endl<<"No solution"<<endl;
+			logstream<<"No solution"<<endl;
+		}	
+		else {
+			vector<int>b;
+			for (int i=0;i<p.dimension*(p.number_of_steps+3);i++){
+					if (e[i]<0){b.push_back(0);}else {b.push_back(1);}
+			}
+			bool t=a.calculate(b,p,simple_problem,true, tempprogress.c_str());
+			if (t==true){
+				cout<<"Solution is correct"<<endl;
+			}
+				else {
+					cout<<"Solution is incorrect"<<endl;
+				}
+		}		
 
 	int q;
 	cin>>q;
