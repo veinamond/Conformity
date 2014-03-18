@@ -17,11 +17,15 @@ enum class Conformity_weights {Weights_at_random, Weights_Decrease_with_distance
 enum class Conformity_neighbourhood_type {AlwaysFullNeighborhood,From_Small_to_Big, From_Big_to_Small};
 enum class Conformity_At_Start {GEQStart,LEQStart, Undefined};
 enum class Conformity_At_End {GEQEnd,LEQEnd,Undefined};
-
+int strtoi(string s){
+	int x = atoi(s.c_str());
+	return x;
+}
 class Conformity_problem{
 public:
 	Conformity_problem();
 	void print (string filename);
+	bool loadfromfile(string filename);
 	Conformity_problem (Conformity_problem_type p_t, int startvalue, int endvalue, int nofagit, int nofloyal, int neighbourhood_radius){
 		conformity_problem_type=p_t;
 		Start_Value_Percent=startvalue;
@@ -113,6 +117,75 @@ void Conformity_problem::print(string filename){
 	out<<"Neighbourhood_radius: "<<Neighbourhood_radius<<endl;
 	out.close();
 }
+bool Conformity_problem::loadfromfile(string filename){
+	ifstream in;
+	in.open(filename.c_str());
+	string s;
+	while ( in.good() ){
+		getline (in,s);
+		int k=s.find(":");
+		if (s.find("Conformity problem type")!=string::npos){
+			string tmp=s.substr(k+2);
+			if (tmp=="Agitated"){conformity_problem_type=Conformity_problem_type::Agitated;}
+			if (tmp=="Loyal vs Agit"){conformity_problem_type=Conformity_problem_type::Loyal_VS_Agit;}
+			if (tmp=="Loyal vs Agit delayed"){conformity_problem_type=Conformity_problem_type::Loyal_VS_Agit_delayed;}
+			if (tmp=="Simple"){conformity_problem_type=Conformity_problem_type::Simple;}
+			if (tmp=="Undefined"){conformity_problem_type=Conformity_problem_type::Undefined;}
+		}		
+		if (s.find("Conformity restrictions")!=string::npos){
+			string tmp=s.substr(k+2);
+			if (tmp=="restrict nothing"){conformity_restrictions=Conformity_restrictions::Restrict_nothing;}
+			if (tmp=="restrict to active"){conformity_restrictions=Conformity_restrictions::Restrict_to_active;}
+			if (tmp=="restrict to inactive"){conformity_restrictions=Conformity_restrictions::Restrict_to_inactive;}			
+		}		
+		if (s.find("Conformity at start")!=string::npos){
+			string tmp=s.substr(k+2);
+			if (tmp=="GEQ"){conformity_at_start=Conformity_At_Start::GEQStart;}
+			if (tmp=="LEQ"){conformity_at_start=Conformity_At_Start::LEQStart;}
+			if (tmp=="Undefined"){conformity_at_start=Conformity_At_Start::Undefined;}			
+		}		
+		if (s.find("Conformity at end")!=string::npos){
+			string tmp=s.substr(k+2);
+			if (tmp=="GEQ"){conformity_at_end=Conformity_At_End::GEQEnd;}
+			if (tmp=="LEQ"){conformity_at_end=Conformity_At_End::LEQEnd;}
+			if (tmp=="Undefined"){conformity_at_end=Conformity_At_End::Undefined;}			
+		}		
+		if (s.find("Start Value Percent")!=string::npos){
+			string tmp=s.substr(k+2);
+			Start_Value_Percent=strtoi(tmp);
+		}
+		if (s.find("End Value Percent")!=string::npos){
+			string tmp=s.substr(k+2);
+			End_Value_Percent=strtoi(tmp);
+		}
+		if (s.find("Has agitators")!=string::npos){
+			string tmp=s.substr(k+2);
+			int e=strtoi(tmp);
+			if (e==0) {Hasagitators=false;}else {Hasagitators=true;}
+		}
+		if (s.find("Has loyalists")!=string::npos){
+			string tmp=s.substr(k+2);
+			int e=strtoi(tmp);
+			if (e==0) {Hasloyalists=false;}else {Hasloyalists=true;}
+		}
+		if (s.find("Number of agitators")!=string::npos){
+			string tmp=s.substr(k+2);
+			Number_of_agitators = strtoi(tmp);
+		}
+		if (s.find("Number of loyalists")!=string::npos){
+			string tmp=s.substr(k+2);
+			Number_of_loyalists = strtoi(tmp);
+		}
+		if (s.find("Neighbourhood_radius")!=string::npos){
+			string tmp=s.substr(k+2);
+			Neighbourhood_radius = strtoi(tmp);
+		}
+
+	}
+	in.close();
+	return true;
+}
+
 Conformity_problem::Conformity_problem(){
 	Start_Value_Percent=0;
 	End_Value_Percent=0;
@@ -125,6 +198,7 @@ Conformity_problem::Conformity_problem(){
 class Conformity_Parameters{
 public:
 	void print (string filename);
+	bool loadfromfile(string filename);
 	Conformity_Parameters();
 	int dimension;//number of vertices in graph
 	int number_of_steps;
@@ -147,8 +221,8 @@ void Conformity_Parameters::print(string filename){
 	out<<"Dimension: "<<dimension<<endl;
 	out<<"Number of steps: "<<number_of_steps<<endl;
 	out<<"Graph type: "; 
-	if (conformity_graph==Conformity_graph::GNP_Graph){out<<" GNP";} 
-	if (conformity_graph==Conformity_graph::WS_Graph){out<<" WS";} 
+	if (conformity_graph==Conformity_graph::GNP_Graph){out<<"GNP";} 
+	if (conformity_graph==Conformity_graph::WS_Graph){out<<"WS";} 
 	out <<endl;
 	out<<"Graph parameter 1: "<<graph_parameter_1<<endl;
 	out<<"Graph parameter 2: "<<graph_parameter_2<<endl;
@@ -170,12 +244,81 @@ void Conformity_Parameters::print(string filename){
 	out<<endl;
 	out<<"Weights radius: "<<Weights_radius<<endl;
 	out<<"Neighbourhood type: ";
-	if (conformity_neighbourhood_type==Conformity_neighbourhood_type::AlwaysFullNeighborhood){out <<" always full neighborhood";}
-	if (conformity_neighbourhood_type==Conformity_neighbourhood_type::From_Big_to_Small){out <<" from big to small";}
-	if (conformity_neighbourhood_type==Conformity_neighbourhood_type::From_Small_to_Big){out <<" from small to big";}
+	if (conformity_neighbourhood_type==Conformity_neighbourhood_type::AlwaysFullNeighborhood){out <<"always full neighborhood";}
+	if (conformity_neighbourhood_type==Conformity_neighbourhood_type::From_Big_to_Small){out <<"from big to small";}
+	if (conformity_neighbourhood_type==Conformity_neighbourhood_type::From_Small_to_Big){out <<"from small to big";}
 	out<<endl;
 	out.close();
 }
+bool Conformity_Parameters::loadfromfile(string filename){
+	ifstream in;
+	in.open(filename.c_str());
+	string s;
+	while ( in.good() ){
+		getline (in,s);
+		int k=s.find(":");
+		if (s.find("Number of steps")!=string::npos){
+			string tmp=s.substr(k+2);
+			number_of_steps = strtoi(tmp);
+		}
+		if (s.find("Dimension")!=string::npos){
+			string tmp=s.substr(k+2);
+			dimension = strtoi(tmp);
+		}
+		if (s.find("Graph type")!=string::npos){
+			string tmp=s.substr(k+2);
+			if (tmp=="GNP"){conformity_graph=Conformity_graph::GNP_Graph;}
+			if (tmp=="WS"){conformity_graph=Conformity_graph::WS_Graph;}			
+		}		
+		if (s.find("Graph parameter 1")!=string::npos){
+			string tmp=s.substr(k+2);
+			graph_parameter_1=atof(tmp.c_str());	
+		}		
+		if (s.find("Graph parameter 2")!=string::npos){
+			string tmp=s.substr(k+2);
+			graph_parameter_2=atoi(tmp.c_str());	
+		}	
+		if (s.find("Conformity level type")!=string::npos){
+			string tmp=s.substr(k+2);
+			if (tmp=="Random"){conformity_conformitylevel_type=Conformity_conformitylevel_type::RandomConformityLevel;}
+			if (tmp=="Threshold"){conformity_conformitylevel_type=Conformity_conformitylevel_type::ThresholdConformityLevel;}
+		}	
+		if (s.find("Conformitylevel parameter")!=string::npos){
+			string tmp=s.substr(k+2);
+			conformitylevel_parameter=atof(tmp.c_str());	
+		}	
+		if (s.find("Conformists")!=string::npos){
+			string tmp=s.substr(k+2);
+			if (tmp=="conformists only"){conformity_conformists=Conformity_conformists::ConformistsOnly;}
+			if (tmp=="mixed"){conformity_conformists=Conformity_conformists::MixedConformists;}
+			if (tmp=="nonconformists only"){conformity_conformists=Conformity_conformists::NonConformistsOnly;}
+		}	
+		if (s.find("Conformists parameter")!=string::npos){
+			string tmp=s.substr(k+2);
+			conformists_parameter=atof(tmp.c_str());	
+		}			
+		if (s.find("Conformity weights type")!=string::npos){
+			string tmp=s.substr(k+2);
+			if (tmp=="weights at random"){conformity_weights=Conformity_weights::Weights_at_random;}
+			if (tmp=="weights decrease with distance"){conformity_weights=Conformity_weights::Weights_Decrease_with_distance;}
+			if (tmp=="weights increase with distance"){conformity_weights=Conformity_weights::Weights_Increase_with_distance;}
+		}	
+		if (s.find("Weights radius")!=string::npos){
+			string tmp=s.substr(k+2);
+			Weights_radius=atoi(tmp.c_str());	
+		}	
+		if (s.find("Neighbourhood type")!=string::npos){
+			string tmp=s.substr(k+2);
+			if (tmp=="always full neighborhood"){conformity_neighbourhood_type=Conformity_neighbourhood_type::AlwaysFullNeighborhood;}
+			if (tmp=="from big to small"){conformity_neighbourhood_type=Conformity_neighbourhood_type::From_Big_to_Small;}
+			if (tmp=="from small to big"){conformity_neighbourhood_type=Conformity_neighbourhood_type::From_Small_to_Big;}
+		}	
+	}
+	in.close();
+	return true;
+}
+
+
 Conformity_Parameters::Conformity_Parameters(){
 		dimension=0;
 		number_of_steps=0;
@@ -186,10 +329,7 @@ Conformity_Parameters::Conformity_Parameters(){
 		Weights_radius=0;
 }
 stringstream logstream;
-int strtoi(string s){
-	int x = atoi(s.c_str());
-	return x;
-}
+
 int twoceil(int k){//returns closest upside degree of 2
 	int t=1;
 	while (t<k){t=t*2;}
@@ -224,6 +364,7 @@ public:
 		Matrix.clear();
 	}
 	::Conformity(Conformity_Parameters params);
+	::Conformity(Conformity_Parameters params, string matrixfilename, string weightmatrixfilename);
 	~Conformity(){
 		nVars=0;
 		nClauses=0;
@@ -252,8 +393,8 @@ public:
 	}
 	void restrictagit(){
 		for (int i=0;i<Curagit.size();i++){
-			if (Curagit[i]==1){Mstream	<<	i+1	<<" 0"<<endl;}
-			else {Mstream << - (i+1) <<" 0"<<endl;}
+			if (Curagit[i]==1){Mstream	<<	i+1	<<" 0"<<endl; nClauses++;}
+			else {Mstream << - (i+1) <<" 0"<<endl; nClauses++;}
 		}
 	}
 	void restrictloyal(){
@@ -292,7 +433,9 @@ public:
 	
 	void loadmatrixfromfile(int n, const char * filename);
 	void savematrixtofile(const char * filename);
+	void saveweightsmatrixtofile(const char* filename);
 	void savematrixtofile_gv(const char * filename);
+	void loadweightsmatrixfromfile(int n, string filename);
 	
 	void printprogresstofile_gv(vector<int>agitators, vector<int> loyalists, vector<int> activity, const char *filename);
 	void Print (const char * fn);
@@ -341,6 +484,22 @@ Conformity::Conformity(Conformity_Parameters params){
 	
 	// conformism
 	make_conformists(params.conformity_conformists, params.conformists_parameter);
+}
+Conformity::Conformity(Conformity_Parameters params, string matrixfilename, string weightmatrixfilename){
+	M.clear();
+	Matrix.clear();
+	WeightedMatrix.clear();
+	Reachability.clear();
+	conformitylevel.clear();
+	conformism.clear();
+	Curagit.clear();
+	Curloyal.clear();
+	nVars=0;
+	nClauses=0;
+	dimension=params.dimension;
+	nofsteps=params.number_of_steps;
+	loadmatrixfromfile(dimension, matrixfilename.c_str());
+	loadweightsmatrixfromfile(dimension,weightmatrixfilename.c_str());	
 }
 vector<int> Conformity::loadssfromfile(const char *filename){
 	ifstream myfile;
@@ -422,12 +581,39 @@ void Conformity::loadmatrixfromfile(int n, const char * filename){
 	if (Matrix.size()!=dimension*dimension){cout<<endl<<"Matrix size"<<Matrix.size()<<" is wrong "<<endl; }	  
 	myfile.close();
 }
+
+void Conformity::loadweightsmatrixfromfile(int n, string filename){
+	WeightedMatrix.clear();
+	ifstream myfile;
+	myfile.open(filename.c_str());
+	string s;
+	for (int t=0;t<n;t++){
+		getline (myfile,s);
+		int r1=0;
+		int r2=0;
+		for (int i=0;i<s.length();i++){
+			if ((s[i]==' ')||(s[i]=='\n')){
+				r2=i;
+				if ((r2-r1)>0){
+					string tmp=s.substr(r1,r2-r1);
+					int t=strtoi(tmp);
+					WeightedMatrix.push_back(t);	
+					r1=r2;
+				}
+			}			
+		  }
+		}		
+	if (WeightedMatrix.size()!=dimension*dimension){cout<<endl<<"Weighted Matrix size"<<Matrix.size()<<" is wrong "<<endl; }	  
+	myfile.close();
+}
+
+
 void Conformity::equalize(vector<int>r1, vector<int>r2){
 	if (r1.size()!=r2.size()) exit;
 	for (int i=0;i<r1.size();i++){
-	Mstream<<-r1[i]<<" "<<r2[i]<<" 0"<<endl;
-	Mstream<<r1[i]<<" "<<-r2[i]<<" 0"<<endl;
-	nClauses+=2;
+		Mstream<<-r1[i]<<" "<<r2[i]<<" 0"<<endl;
+		Mstream<<r1[i]<<" "<<-r2[i]<<" 0"<<endl;
+		nClauses+=2;
 	}
 }
 void Conformity::savematrixtofile(const char* filename){
@@ -448,6 +634,18 @@ void Conformity::savematrixtofile(const char* filename){
 	myfile<<"Conformism"<<endl;
 	for (int i=0;i<dimension;i++){
 		myfile<<conformism[i]<<" ";
+	}
+	myfile.close();
+}
+void Conformity::saveweightsmatrixtofile(const char* filename){
+	ofstream myfile;
+	myfile.open(filename);
+	string s;
+	for (int i=0;i<dimension;i++){
+		for (int j=0;j<dimension;j++){
+			myfile<<WeightedMatrix[dimension*i+j]<<" ";
+		}
+		myfile<<endl;
 	}
 	myfile.close();
 }
@@ -919,6 +1117,10 @@ bool Conformity::calculate(vector<int> inp, Conformity_Parameters conf_params, C
 	vector<int> loyalists;
 	vector<int> curstep;
 	vector<int> nextstep;
+	string logfile=filename;
+	ofstream log_out;
+	log_out.open(logfile.c_str());
+
 	string tmpprogress=filename;
 	bool a = true;
 	for (int i = 0; i<dimension; i++){
@@ -928,16 +1130,16 @@ bool Conformity::calculate(vector<int> inp, Conformity_Parameters conf_params, C
 	}
 	if (verbosity==true) {
 		cout << endl << "Agitators" << endl;
-		logstream << endl << "Agitators" << endl;
+		log_out << endl << "Agitators" << endl;
 		for (int d = 0; d<dimension; d++){
 			cout << agitators[d] << " ";
-			logstream << agitators[d] << " ";
+			log_out<< agitators[d] << " ";
 		}
 		cout << endl << "loyalists" << endl;
-		logstream << endl << "loyalists" << endl;
+		log_out << endl << "loyalists" << endl;
 		for (int d = 0; d<dimension; d++){
 			cout << loyalists[d] << " ";
-			logstream << loyalists[d] << " ";
+			log_out<< loyalists[d] << " ";
 		}
 	}
 	for (int i = 0; i<dimension; i++){
@@ -947,14 +1149,14 @@ bool Conformity::calculate(vector<int> inp, Conformity_Parameters conf_params, C
 	//curstep=inp;
 	if (verbosity==true){
 		cout << endl << "Step 0" << endl;
-		logstream << endl << "Step 0" << endl;
+		log_out << endl << "Step 0" << endl;
 		for (int d = 0; d<dimension; d++){
 			cout << curstep[d] << " ";
-			logstream << curstep[d] << " ";			
+			log_out << curstep[d] << " ";			
 		}
 		string tmp = tmpprogress + "_0.txt";
-		printprogresstofile_gv(agitators, loyalists, curstep, tmp.c_str());
-		logstream << endl;
+		//printprogresstofile_gv(agitators, loyalists, curstep, tmp.c_str());
+		log_out << endl;
 		cout << endl;
 	}
 	for (int k = 0; k<conf_params.number_of_steps; k++){
@@ -1001,30 +1203,31 @@ bool Conformity::calculate(vector<int> inp, Conformity_Parameters conf_params, C
 		for (int i = 0; i<dimension; i++){
 			if (curstep[i] != inp[(2 + k + 1)*dimension + i]){
 				cout << endl << "Correctness on step " << k + 1 << " point  " << i << " is failed" << endl;
-				logstream << endl << "Correctness on step " << k + 1 << " point  " << i << " is failed" << endl;
+				log_out << endl << "Correctness on step " << k + 1 << " point  " << i << " is failed" << endl;
 				b = false;
 				a = false;
 			}
 		}
 		if (verbosity==true){
 			string tmp = tmpprogress + "_"+inttostr(k+1)+".txt";
-			printprogresstofile_gv(agitators, loyalists, curstep, tmp.c_str());
+			//printprogresstofile_gv(agitators, loyalists, curstep, tmp.c_str());
 
 			cout << endl << "Step " << k + 1 << endl;
-			logstream << endl << "Step " << k + 1 << endl;
+			log_out << endl << "Step " << k + 1 << endl;
 			for (int d = 0; d<dimension; d++){
 				cout << curstep[d] << " ";
-				logstream << curstep[d] << " ";
+				log_out << curstep[d] << " ";
 			}
 			cout << endl;
-			logstream << endl;
+			log_out << endl;
 		}
 		if (b == true){
 			cout << endl << "Step " << k + 1 << " is correct" << endl;
-			logstream << endl << "Step " << k + 1 << " is correct" << endl;
+			log_out << endl << "Step " << k + 1 << " is correct" << endl;
 		}
 	}
 	return a;	
+	log_out.close();
 }
 
 void Conformity::Notmoreatstart(int n, bool agitators, bool loyalists){
@@ -1181,7 +1384,7 @@ void Conformity::WSgraph (int n, int k, double prob){
 			int tmp;
 			tmp=abs(i-j)%(n-(k/2));
 			if ((tmp>=0)&&(tmp<=k/2)) {
-				wsmatrix.push_back(rand()%3+1);
+				wsmatrix.push_back(1);
 			}
 			else {
 				wsmatrix.push_back(0);
@@ -1336,34 +1539,34 @@ void Conformity::Newvareqor(int nv, vector<int>right){//not modified for strings
 	a[0]=-nv;
 	Mstream<<a[0]<<" ";
 	for (int i=0;i<len;i++){
-	a[i+1]=right[i];
-	Mstream<<a[i+1]<<" ";
+		a[i+1]=right[i];
+		Mstream<<a[i+1]<<" ";
 	}
 	Mstream<<"0"<<endl;
 	a[len+1]=0;	
 	//M.push_back(a);
 	nClauses++;
 	for (int i=0;i<len;i++){
-	a=new (int[3]);
-	a[0]=nv;
-	a[1]=-right[i];
-	a[2]=0;
-	Mstream<<a[0]<<" "<<a[1]<<" 0"<<endl;
-	//M.push_back(a);
-	nClauses++;
+		a=new (int[3]);
+		a[0]=nv;
+		a[1]=-right[i];
+		a[2]=0;
+		Mstream<<a[0]<<" "<<a[1]<<" 0"<<endl;
+		//M.push_back(a);
+		nClauses++;
 	}
 }
 vector<int> Conformity::vecnewvareqor(const vector<int> r1, const vector<int>r2){
 	vector<int> nv;
 	if (r1.size()!=r2.size()) exit;
 	for (int i=0;i<r1.size();i++){
-	nv.push_back(++nVars);
+		nv.push_back(++nVars);
 	}	
 	for (int i=0;i<nv.size();i++){
-	vector<int> tmp;
-	tmp.push_back(r1[i]);
-	tmp.push_back(r2[i]);
-	Newvareqor(nv[i],tmp);
+		vector<int> tmp;
+		tmp.push_back(r1[i]);
+		tmp.push_back(r2[i]);
+		Newvareqor(nv[i],tmp);
 	}
 	return nv;
 }
@@ -1374,72 +1577,74 @@ void Conformity::Newvareqand(int nv, vector<int>right){
 	a[0]=nv;
 	Mstream<<a[0]<<" ";
 	for (int i=0;i<len;i++){
-	a[i+1]=-right[i];
-	Mstream <<a[i+1]<<" ";
+		a[i+1]=-right[i];
+		Mstream <<a[i+1]<<" ";
 	}
 	a[len+1]=0;
 	Mstream<<"0"<<endl;
 	//M.push_back(a);
 	nClauses++;
 	for (int i=0;i<len;i++){
-	a=new (int[3]);
-	a[0]=-nv;
-	a[1]=right[i];
-	a[2]=0;
-	Mstream<<a[0]<<" "<<a[1]<<" 0"<<endl;
-	//M.push_back(a);
-	nClauses++;
+		a=new (int[3]);
+		a[0]=-nv;
+		a[1]=right[i];
+		a[2]=0;
+		Mstream<<a[0]<<" "<<a[1]<<" 0"<<endl;
+		//M.push_back(a);
+		nClauses++;	
 	}
 }
 vector<int> Conformity::vecnewvareqand (const vector<int> r1, const vector<int> r2){//not modified for stringstream
  	vector<int> nv;
 	if (r1.size()!=r2.size()) exit;
 	for (int i=0;i<r1.size();i++){
-	nv.push_back(++nVars);
+		nv.push_back(++nVars);
 	}	
 	for (int i=0;i<nv.size();i++){
-	vector<int> tmp;
-	tmp.push_back(r1[i]);
-	tmp.push_back(r2[i]);
-	Newvareqand(nv[i],tmp);
+		vector<int> tmp;
+		tmp.push_back(r1[i]);
+		tmp.push_back(r2[i]);
+		Newvareqand(nv[i],tmp);
 	}
 	return nv;
 }
 void Conformity::onlyonesimple(vector<int> t){//not modified for stringstream
 	int len=t.size();
 	for (int i=0;i<len;i++){
-	for (int j=i+1;j<len;j++){
-	int *a;
-	a=new(int[3]);
-	a[0]=-t[i];
-	a[1]=-t[j];
-	a[2]=0;
-	Mstream<<a[0]<<" " <<a[1]<<" 0"<<endl;
-	//M.push_back(a);
-	}
+		for (int j=i+1;j<len;j++){
+			int *a;
+			a=new(int[3]);
+			a[0]=-t[i];
+			a[1]=-t[j];
+			a[2]=0;
+			Mstream<<a[0]<<" " <<a[1]<<" 0"<<endl;
+			nClauses++;
+			//M.push_back(a);
+		}
 	}
 }
 void Conformity::onlyonecomplex(vector<int> t){//not modified for stringstream
 	int len=t.size();
 	vector<int>nv;
 	for(int i=0;i<len;i++){
-	vector<int>r;
-	for (int j=0;j<len;j++){
-	if (j!=i) r.push_back(-t[j]);
-	}
-	nv.push_back(++nVars);
-	Newvareqand(nVars,r);//+m+2 дизъюнкта
-	r.clear();
+		vector<int>r;
+		for (int j=0;j<len;j++){
+			if (j!=i) r.push_back(-t[j]);
+		}
+		nv.push_back(++nVars);
+		Newvareqand(nVars,r);//+m+2 дизъюнкта
+		r.clear();
 	}
 	//в итоге m*(m+2) дизъюнктов
 	for (int i=0;i<len;i++){
-	int * a;
-	a=new(int[3]);
-	a[0]=-t[i];
-	a[1]=nv[i];
-	a[2]=0;
-	Mstream<<a[0]<<" " <<a[1]<<" 0"<<endl;
-	//M.push_back(a);
+		int * a;
+		a=new(int[3]);
+		a[0]=-t[i];
+		a[1]=nv[i];
+		a[2]=0;
+		Mstream<<a[0]<<" " <<a[1]<<" 0"<<endl;
+		nClauses++;
+		//M.push_back(a);
 	}
 }
 
@@ -1588,18 +1793,25 @@ void Conformity::generalfunctioning(Conformity_problem c_p){
 	//we also need to restrict simultaneous agitation and loyalization, do we?
 
 	for (int i=0;i<dimension;i++){
-		if (agitated && loyaled ) {	Mstream<<-agitators[i]<<" "<<loyalists[i]<<" 0"<<endl; } //restriction
+		if (agitated && loyaled ) {	
+			Mstream<<-agitators[i]<<" "<<loyalists[i]<<" 0"<<endl; 
+			nClauses++;
+		} //restriction
 		
 		if (agitated){
 			Mstream<<-agitators[i]<<" "<<firststep[i]<<" 0"<<endl;
+			nClauses++;
 			if (c_p.conformity_restrictions==Conformity_restrictions::Restrict_to_inactive){
 					Mstream<<agitators[i]<<" "<<-firststep[i]<<" 0"<<endl;
+					nClauses++;
 			}
 		}// if agitated then 1
 		if (loyaled ){
 			Mstream<<loyalists[i]<<" "<<-firststep[i]<<" 0"<<endl;
+			nClauses++;
 			if (c_p.conformity_restrictions==Conformity_restrictions::Restrict_to_active){
 				Mstream<<-loyalists[i]<<" "<<firststep[i]<<" 0"<<endl;
+				nClauses++;
 			}
 			//if (strict){Mstream<<-loyalists[i]<<" "<<firststep[i]<<" 0"<<endl;}
 		}// if loyaled then 0
@@ -1675,7 +1887,12 @@ void Conformity::generalfunctioning(Conformity_problem c_p){
 	int at_end=dimension*c_p.End_Value_Percent/100;
 
 	if (c_p.conformity_at_start==Conformity_At_Start::GEQStart){
-		
+		if (agitated==true){
+			Notmoreatstart(c_p.Number_of_agitators,1,0);
+		}
+		if (loyaled==true){
+			Notmoreatstart(c_p.Number_of_loyalists,0,1);
+		}
 	}
 	else if (c_p.conformity_at_start==Conformity_At_Start::LEQStart){
 		Notmoreatstart(at_start,0,0);
@@ -2764,24 +2981,177 @@ int checktests(int noftests, int dimension, int step, double gnpprob, double con
 	logstream.clear();
 	return 1;
 }
+
+void gentests_gen(int noftests, Conformity_Parameters params, Conformity_problem prob, string pathname){
+	std::wstring stemp = s2ws(pathname);
+	
+	LPCWSTR result = stemp.c_str();
+	CreateDirectory(result, NULL);
+	
+	string param_file=pathname+"parameters.txt";
+	params.print(param_file);
+
+	string problem_param_file=pathname+"problem.txt";
+	prob.print(problem_param_file);
+
+	string filename_template;
+	if (params.conformity_graph==Conformity_graph::GNP_Graph){filename_template="gnp";}
+	if (params.conformity_graph==Conformity_graph::WS_Graph){filename_template="ws";}
+	filename_template+=inttostr(params.dimension)+"_";
+	filename_template+="0"+inttostr(params.graph_parameter_1*10)+"_";
+	if (params.conformity_graph==Conformity_graph::WS_Graph){filename_template+=inttostr(params.graph_parameter_2)+"_";}
+	if (params.conformity_weights==Conformity_weights::Weights_at_random){filename_template+="rndw";}
+	if (params.conformity_weights==Conformity_weights::Weights_Decrease_with_distance){filename_template+="decw";}
+	if (prob.conformity_problem_type==Conformity_problem_type::Simple){filename_template+="_simp";}
+	if (prob.conformity_problem_type==Conformity_problem_type::Agitated){filename_template+="_agit";}
+	for (int i=0;i<noftests;i++){
+			Conformity r(params);
+			r.generalfunctioning(prob);
+			string r_matrixfilename = pathname+filename_template+"_matrix_" + inttostr(i + 1) + ".txt";
+			string r_weightsmatrixfilename = pathname+filename_template+"_weights_" + inttostr(i + 1) + ".txt";
+			r.savematrixtofile(r_matrixfilename.c_str());
+			r.saveweightsmatrixtofile(r_weightsmatrixfilename.c_str());
+			string cnffilename = pathname+ filename_template+"_"+inttostr(i + 1) + ".cnf";
+			r.Print(cnffilename.c_str());
+	}
+}
+void gentests_gen_loyaled(int noftests, Conformity_problem prob_loyal, string pathname){
+	
+	string logfilename=pathname+"correctness_check_log.txt";
+	ofstream out;
+	out.open(logfilename);
+
+	Conformity_Parameters params;
+	Conformity_problem prob;
+	string param_file=pathname+"parameters.txt";
+	params.loadfromfile(param_file);
+	string problem_param_file=pathname+"problem.txt";
+	prob.loadfromfile(problem_param_file);
+	
+	string loyal_problem_param_file;
+	if (prob_loyal.conformity_problem_type==Conformity_problem_type::Loyal_VS_Agit){loyal_problem_param_file=pathname+"problem_loyal.txt";}
+	if (prob_loyal.conformity_problem_type==Conformity_problem_type::Loyal_VS_Agit_delayed){loyal_problem_param_file=pathname+"problem_loyal_del.txt";}
+	prob_loyal.print(loyal_problem_param_file);
+
+	string filename_template;
+	if (params.conformity_graph==Conformity_graph::GNP_Graph){filename_template="gnp";}
+	if (params.conformity_graph==Conformity_graph::WS_Graph){filename_template="ws";}
+	filename_template+=inttostr(params.dimension)+"_";
+	filename_template+="0"+inttostr(params.graph_parameter_1*10)+"_";
+	if (params.conformity_graph==Conformity_graph::WS_Graph){filename_template+=inttostr(params.graph_parameter_2)+"_";}
+	if (params.conformity_weights==Conformity_weights::Weights_at_random){filename_template+="rndw";}
+	if (params.conformity_weights==Conformity_weights::Weights_Decrease_with_distance){filename_template+="decw";}
+	string filename_template_loyal=filename_template;
+	if (prob_loyal.conformity_problem_type==Conformity_problem_type::Loyal_VS_Agit){filename_template_loyal+="_loyalvsagit";}
+	if (prob_loyal.conformity_problem_type==Conformity_problem_type::Loyal_VS_Agit_delayed){filename_template_loyal+="_loyalvsagit_del";}
+	
+	if (prob.conformity_problem_type==Conformity_problem_type::Simple){filename_template+="_simp";}
+	if (prob.conformity_problem_type==Conformity_problem_type::Agitated){filename_template+="_agit";}
+	
+	for (int i=0;i<noftests;i++){
+			string r_matrixfilename = pathname+filename_template+"_matrix_" + inttostr(i + 1) + ".txt";
+			string r_weightsmatrixfilename = pathname+filename_template+"_weights_" + inttostr(i + 1) + ".txt";
+			string sat_solutionfilename=pathname+"minisat_simp_"+filename_template+"_"+inttostr(i + 1)+"_cnf.txt";
+			Conformity r(params,r_matrixfilename,r_weightsmatrixfilename);
+			vector<int> o= r.loadssfromfile(sat_solutionfilename.c_str());						
+			if (o.size()==0){
+				cout<<endl<<"No solution"<<endl;
+				out<<"No solution"<<endl;
+			}	
+			else {
+				vector<int>b;
+				for (int i=0;i<params.dimension*(params.number_of_steps+3);i++){
+						if (o[i]<0){b.push_back(0);}else {b.push_back(1);}
+				}
+				string tmp=pathname+filename_template+"_"+inttostr(i+1)+"_process.log";
+				bool t=r.calculate(b,params,prob,true,tmp.c_str());
+				if (t==true){
+					cout<<"Solution is correct"<<endl;
+					out<<"Solution is correct"<<endl;
+					}
+				else {
+					cout<<"Solution is incorrect"<<endl;
+					out<<"Solution is incorrect"<<endl;
+				}
+				r.generalfunctioning(prob_loyal);
+				r.restrictagit();	
+				string loyaledcnfname;
+				if (prob_loyal.conformity_problem_type==Conformity_problem_type::Loyal_VS_Agit){loyaledcnfname==pathname+filename_template_loyal+"_"+inttostr(i+1)+".cnf";}
+				if (prob_loyal.conformity_problem_type==Conformity_problem_type::Loyal_VS_Agit_delayed){loyaledcnfname=pathname+filename_template_loyal+"_"+inttostr(i+1)+".cnf";}
+				r.Print(loyaledcnfname.c_str());
+			}
+	}
+	out.close();
+}
+void checktests_gen(int noftests,  string pathname){
+	string logfilename=pathname+"correctness_check_log.txt";
+	ofstream out;
+	out.open(logfilename);
+
+	Conformity_Parameters params;
+	Conformity_problem prob;
+	string param_file=pathname+"parameters.txt";
+	params.loadfromfile(param_file);
+	string problem_param_file=pathname+"problem.txt";
+	prob.loadfromfile(problem_param_file);
+
+	string filename_template;
+	if (params.conformity_graph==Conformity_graph::GNP_Graph){filename_template="gnp";}
+	if (params.conformity_graph==Conformity_graph::WS_Graph){filename_template="ws";}
+	filename_template+=inttostr(params.dimension)+"_";
+	filename_template+="0"+inttostr(params.graph_parameter_1*10)+"_";
+	if (params.conformity_graph==Conformity_graph::WS_Graph){filename_template+=inttostr(params.graph_parameter_2)+"_";}
+	if (params.conformity_weights==Conformity_weights::Weights_at_random){filename_template+="rndw";}
+	if (params.conformity_weights==Conformity_weights::Weights_Decrease_with_distance){filename_template+="decw";}
+	if (prob.conformity_problem_type==Conformity_problem_type::Simple){filename_template+="_simp";}
+	if (prob.conformity_problem_type==Conformity_problem_type::Agitated){filename_template+="_agit";}
+	for (int i=0;i<noftests;i++){
+			string r_matrixfilename = pathname+filename_template+"_matrix_" + inttostr(i + 1) + ".txt";
+			string r_weightsmatrixfilename = pathname+filename_template+"_weights_" + inttostr(i + 1) + ".txt";
+			string sat_solutionfilename=pathname+"minisat_simp_"+filename_template+"_"+inttostr(i + 1)+"_cnf.txt";
+			Conformity r(params,r_matrixfilename,r_weightsmatrixfilename);
+			vector<int> o= r.loadssfromfile(sat_solutionfilename.c_str());						
+			if (o.size()==0){
+				cout<<endl<<"No solution"<<endl;
+				out<<"No solution"<<endl;
+			}	
+			else {
+				vector<int>b;
+				for (int i=0;i<params.dimension*(params.number_of_steps+3);i++){
+						if (o[i]<0){b.push_back(0);}else {b.push_back(1);}
+				}
+				string tmp=pathname+filename_template+"_"+inttostr(i+1)+"_process.log";
+				bool t=r.calculate(b,params,prob,true,tmp.c_str());
+				if (t==true){
+						cout<<"Solution is correct"<<endl;
+						out<<"Solution is correct"<<endl;
+				}
+					else {
+						cout<<"Solution is incorrect"<<endl;
+						out<<"Solution is incorrect"<<endl;
+					}
+			}
+	}
+	out.close();
+}
+
 int main (){
 	Conformity_Parameters p;
-	p.dimension=200;
+	p.dimension=100;
 	p.number_of_steps=10;
 	p.conformity_graph=Conformity_graph::GNP_Graph;
 	p.graph_parameter_1=0.3;
-	p.graph_parameter_2=4;
+	p.graph_parameter_2=10;
 	p.conformity_conformitylevel_type=Conformity_conformitylevel_type::RandomConformityLevel;
 	p.conformitylevel_parameter=0;
 	p.conformity_conformists=Conformity_conformists::ConformistsOnly;
-	//p.conformity_weights=Conformity_weights::Weights_Decrease_with_distance;
-	p.conformity_weights=Conformity_weights::Weights_at_random;
+	p.conformity_weights=Conformity_weights::Weights_Decrease_with_distance;
+	//p.conformity_weights=Conformity_weights::Weights_at_random;
 	p.conformists_parameter=0;
-	//p.Weights_radius=1;
-	p.Weights_radius=4;
+	p.Weights_radius=1;
+	//p.Weights_radius=4;
 	p.conformity_neighbourhood_type=Conformity_neighbourhood_type::AlwaysFullNeighborhood;
-		
-	Conformity a(p);
+	
 	int agitators_percent=20;
 	int loyalists_percent=30;
 
@@ -2790,14 +3160,71 @@ int main (){
 
 	//for these two problems we actually need the agitators configuration obtained from some previous work. so....
 
-	Conformity_problem loyaled_vs_agit(Conformity_problem_type::Loyal_VS_Agit, 20, 80, p.dimension*agitators_percent/100, p.dimension*loyalists_percent/100, p.Weights_radius);
-	Conformity_problem loyaled_vs_agit_delayed(Conformity_problem_type::Loyal_VS_Agit_delayed, 20, 80, p.dimension*agitators_percent/100, p.dimension*loyalists_percent/100, p.Weights_radius);
+	Conformity_problem loyaled_vs_agit(Conformity_problem_type::Loyal_VS_Agit, p.dimension- p.dimension*loyalists_percent/100, p.dimension*agitators_percent/100, p.dimension*agitators_percent/100, p.dimension*loyalists_percent/100, p.Weights_radius);
+	Conformity_problem loyaled_vs_agit_delayed(Conformity_problem_type::Loyal_VS_Agit_delayed, p.dimension-p.dimension*loyalists_percent/100, p.dimension*agitators_percent/100, p.dimension*agitators_percent/100, p.dimension*loyalists_percent/100, p.Weights_radius);
 	//need to resolve asap.
+	
+	gentests_gen_loyaled(10,loyaled_vs_agit_delayed,"D:\\Tests_backup\\new_tests_2\\");
+	/*
+	gentests_gen(10,p,simple_problem,"D:\\shared_folder\\Тесты_конформность\\new_tests_9\\");
+	
+	gentests_gen(10,p,agitated,"D:\\shared_folder\\Тесты_конформность\\new_tests_10\\");
+	
+	p.conformity_graph=Conformity_graph::WS_Graph;
+	
+	gentests_gen(10,p,simple_problem,"D:\\shared_folder\\Тесты_конформность\\new_tests_11\\");
+	
+	gentests_gen(10,p,agitated,"D:\\shared_folder\\Тесты_конформность\\new_tests_12\\");
+	
+	p.Weights_radius=3;
+	p.conformity_weights=Conformity_weights::Weights_at_random;
+	p.conformity_graph=Conformity_graph::GNP_Graph;
 
+	simple_problem.Neighbourhood_radius=p.Weights_radius;
+	agitated.Neighbourhood_radius=p.Weights_radius;
+	
+	gentests_gen(10,p,simple_problem,"D:\\shared_folder\\Тесты_конформность\\new_tests_13\\");
+	
+	gentests_gen(10,p,agitated,"D:\\shared_folder\\Тесты_конформность\\new_tests_14\\");
+	
+	p.conformity_graph=Conformity_graph::WS_Graph;
+	
+	gentests_gen(10,p,simple_problem,"D:\\shared_folder\\Тесты_конформность\\new_tests_15\\");
+	
+	gentests_gen(10,p,agitated,"D:\\shared_folder\\Тесты_конформность\\new_tests_16\\");
+	
+	/*
+
+	
+	string	test_to_be_checked_matrix="D:\\shared_folder\\Тесты_конформность\\agit_batch1\\matrix_1.txt";
+	string	test_to_be_checked_ss="D:\\shared_folder\\Тесты_конформность\\agit_batch1\\agit_1.out";
+
+	Conformity a(p,test_to_be_checked_matrix);
+
+	vector<int> o = a.loadssfromfile(test_to_be_checked_ss.c_str());
+	if (o.size()==0){
+		cout<<endl<<"No solution"<<endl;
+		logstream<<"No solution"<<endl;
+	}	
+	else {
+		vector<int>b;
+		for (int i=0;i<p.dimension*(p.number_of_steps+3);i++){
+				if (o[i]<0){b.push_back(0);}else {b.push_back(1);}
+		}
+		bool t=a.calculate(b,p,agitated,true,"D:\\shared_folder\\Тесты_конформность\\agit_batch1\\agit_1_process.txt");
+		if (t==true){
+			cout<<"Solution is correct"<<endl;
+		}
+			else {
+				cout<<"Solution is incorrect"<<endl;
+			}
+	}		
+
+	/*
 	string cnfinputfilename="D:\\tests\\Conformity\\test1.cnf";
 	a.generalfunctioning(agitated);
 	a.Print(cnfinputfilename.c_str());
-	string testpath="D:\\tests\\Conformity\\agit_batch2\\";
+	string testpath="D:\\tests\\Conformity\\agit_batch3\\";
 	
 	std::wstring stemp = s2ws(testpath);
 	LPCWSTR result = stemp.c_str();
@@ -2818,6 +3245,7 @@ int main (){
 			r.Print(cnffilename.c_str());
 	}
 
+	*/
 
 	/*string cnfoutputfilename="D:\\tests\\Conformity\\test1.out";
 	string cryptolog="D:\\tests\\Conformity\\crypto.log";
