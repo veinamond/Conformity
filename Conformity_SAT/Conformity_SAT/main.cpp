@@ -3134,6 +3134,65 @@ void checktests_gen(int noftests,  string pathname){
 	}
 	out.close();
 }
+void checktests_gen_loyaled(int noftests,  string pathname){
+	string logfilename=pathname+"correctness_check_log.txt";
+	ofstream out;
+	out.open(logfilename);
+
+	Conformity_Parameters params;
+	Conformity_problem prob;
+	Conformity_problem prob_loyal;
+	string param_file=pathname+"parameters.txt";
+	params.loadfromfile(param_file);
+	string problem_param_file=pathname+"problem.txt";
+	prob.loadfromfile(problem_param_file);
+	string loyal_problem_param_file;
+	prob_loyal.loadfromfile(loyal_problem_param_file);
+
+	string filename_template;
+	if (params.conformity_graph==Conformity_graph::GNP_Graph){filename_template="gnp";}
+	if (params.conformity_graph==Conformity_graph::WS_Graph){filename_template="ws";}
+	filename_template+=inttostr(params.dimension)+"_";
+	filename_template+="0"+inttostr(params.graph_parameter_1*10)+"_";
+	if (params.conformity_graph==Conformity_graph::WS_Graph){filename_template+=inttostr(params.graph_parameter_2)+"_";}
+	if (params.conformity_weights==Conformity_weights::Weights_at_random){filename_template+="rndw";}
+	if (params.conformity_weights==Conformity_weights::Weights_Decrease_with_distance){filename_template+="decw";}
+	string filename_template_loyal=filename_template;
+	if (prob_loyal.conformity_problem_type==Conformity_problem_type::Loyal_VS_Agit){filename_template_loyal+="_loyalvsagit";}
+	if (prob_loyal.conformity_problem_type==Conformity_problem_type::Loyal_VS_Agit_delayed){filename_template_loyal+="_loyalvsagit_del";}
+	
+	if (prob.conformity_problem_type==Conformity_problem_type::Simple){filename_template+="_simp";}
+	if (prob.conformity_problem_type==Conformity_problem_type::Agitated){filename_template+="_agit";}
+	
+	for (int i=0;i<noftests;i++){
+			string r_matrixfilename = pathname+filename_template+"_matrix_" + inttostr(i + 1) + ".txt";
+			string r_weightsmatrixfilename = pathname+filename_template+"_weights_" + inttostr(i + 1) + ".txt";
+			string sat_solutionfilename=pathname+"minisat_simp_"+filename_template_loyal+"_"+inttostr(i + 1)+"_cnf.txt";
+			Conformity r(params,r_matrixfilename,r_weightsmatrixfilename);
+			vector<int> o = r.loadssfromfile(sat_solutionfilename.c_str());						
+			if (o.size()==0){
+				cout<<endl<<"No solution"<<endl;
+				out<<"No solution"<<endl;
+			}	
+			else {
+				vector<int>b;
+				for (int i=0;i<params.dimension*(params.number_of_steps+3);i++){
+						if (o[i]<0){b.push_back(0);}else {b.push_back(1);}
+				}
+				string tmp=pathname+filename_template+"_"+inttostr(i+1)+"_process.log";
+				bool t=r.calculate(b,params,prob_loyal,true,tmp.c_str());
+				if (t==true){
+						cout<<"Solution is correct"<<endl;
+						out<<"Solution is correct"<<endl;
+				}
+					else {
+						cout<<"Solution is incorrect"<<endl;
+						out<<"Solution is incorrect"<<endl;
+					}
+			}
+	}
+	out.close();
+}
 
 int main (){
 	Conformity_Parameters p;
