@@ -3165,6 +3165,7 @@ void checktests_gen_loyaled(int noftests,  string pathname){
 	string problem_param_file=pathname+"problem.txt";
 	prob.loadfromfile(problem_param_file);
 	string loyal_problem_param_file;
+	loyal_problem_param_file=pathname+"problem_loyal_del.txt";
 	prob_loyal.loadfromfile(loyal_problem_param_file);
 
 	string filename_template;
@@ -3186,6 +3187,7 @@ void checktests_gen_loyaled(int noftests,  string pathname){
 			string r_matrixfilename = pathname+filename_template+"_matrix_" + inttostr(i + 1) + ".txt";
 			string r_weightsmatrixfilename = pathname+filename_template+"_weights_" + inttostr(i + 1) + ".txt";
 			string sat_solutionfilename=pathname+"minisat_simp_"+filename_template_loyal+"_"+inttostr(i + 1)+"_cnf.txt";
+			
 			Conformity r(params,r_matrixfilename,r_weightsmatrixfilename);
 			vector<int> o = r.loadssfromfile(sat_solutionfilename.c_str());						
 			if (o.size()==0){
@@ -3218,7 +3220,7 @@ int main (){
 	p.number_of_steps=10;
 	p.conformity_graph=Conformity_graph::GNP_Graph;
 	p.graph_parameter_1=0.3;
-	p.graph_parameter_2=10;
+	p.graph_parameter_2=20;
 	p.conformity_conformitylevel_type=Conformity_conformitylevel_type::RandomConformityLevel;
 	p.conformitylevel_parameter=0;
 	p.conformity_conformists=Conformity_conformists::ConformistsOnly;
@@ -3243,29 +3245,28 @@ int main (){
 	Conformity_problem loyaled_vs_agit_delayed(Conformity_problem_type::Loyal_VS_Agit_delayed, 100-loyalists_percent, agitators_percent, nagit, nloyal, p.Weights_radius);
 	//need to resolve asap.
 	
-	p.graph_parameter_1=0.2;
-	p.Weights_radius=1;
-	agitated.Neighbourhood_radius=p.Weights_radius;
-	p.conformity_weights=Conformity_weights::Weights_Decrease_with_distance;
-	p.conformity_graph=Conformity_graph::GNP_Graph;
+	gentests_gen_loyaled(10,loyaled_vs_agit_delayed,"D:\\Tests_backup\\gnp200_02_decw_agit\\","D:\\Tests_backup\\26.03.14\\gnp200_02_decw_lvsa_del\\");
+	gentests_gen_loyaled(10,loyaled_vs_agit_delayed,"D:\\Tests_backup\\gnp200_02_rndw_agit\\","D:\\Tests_backup\\26.03.14\\gnp200_02_rndw_lvsa_del\\");
+	gentests_gen_loyaled(10,loyaled_vs_agit_delayed,"D:\\Tests_backup\\gnp200_04_decw_agit\\","D:\\Tests_backup\\26.03.14\\gnp200_04_decw_lvsa_del\\");
+	gentests_gen_loyaled(10,loyaled_vs_agit_delayed,"D:\\Tests_backup\\gnp200_04_rndw_agit\\","D:\\Tests_backup\\26.03.14\\gnp200_04_rndw_lvsa_del\\");
 
-	gentests_gen(10,p,agitated,"D:\\Tests_backup\\gnp200_02_decw_agit\\");
-	
+		
+	p.graph_parameter_1=0.2;
 	p.conformity_graph=Conformity_graph::WS_Graph;
 	
-	gentests_gen(10,p,agitated,"D:\\Tests_backup\\ws200_02_20_decw_agit\\");
+	gentests_gen(10,p,agitated,"D:\\Tests_backup\\26.03.14\\ws200_02_20_decw_agit\\");
+	p.graph_parameter_1=0.4;
+	gentests_gen(10,p,agitated,"D:\\Tests_backup\\26.03.14\\ws200_04_20_decw_agit\\");
+
+	
 	
 	p.Weights_radius=3;
 	p.conformity_weights=Conformity_weights::Weights_at_random;
-	p.conformity_graph=Conformity_graph::GNP_Graph;
-
 	agitated.Neighbourhood_radius=p.Weights_radius;
-	
-	gentests_gen(10,p,agitated,"D:\\Tests_backup\\gnp200_02_rndw_agit\\");
-	
-	p.conformity_graph=Conformity_graph::WS_Graph;
-	
-	gentests_gen(10,p,agitated,"D:\\Tests_backup\\ws200_02_20_rndw_agit\\");
+	p.graph_parameter_1=0.2;
+	gentests_gen(10,p,agitated,"D:\\Tests_backup\\26.03.14\\ws200_02_20_rndw_agit\\");
+	p.graph_parameter_1=0.4;
+	gentests_gen(10,p,agitated,"D:\\Tests_backup\\26.03.14\\ws200_04_20_rndw_agit\\");
 	
 
 	//gentests_gen_loyaled(10,loyaled_vs_agit_delayed,"D:\\Tests_backup\\gnp200_03_decw_agit\\","D:\\Tests_backup\\gnp200_03_decw_lvsa_del\\");
