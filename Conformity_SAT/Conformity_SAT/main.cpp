@@ -8,8 +8,19 @@
 #include <stdlib.h>
 #include <Windows.h>
 using namespace std;
+std::wstring s2ws(const std::string& s)
+{
+    int len;
+    int slength = (int)s.length() + 1;
+    len = MultiByteToWideChar(CP_ACP, 0, s.c_str(), slength, 0, 0); 
+    wchar_t* buf = new wchar_t[len];
+    MultiByteToWideChar(CP_ACP, 0, s.c_str(), slength, buf, len);
+    std::wstring r(buf);
+    delete[] buf;
+    return r;
+}
 enum class Conformity_problem_type {Simple, Agitated, Loyal_VS_Agit, Loyal_VS_Agit_delayed, Undefined};
-enum class Conformity_graph {GNP_Graph, WS_Graph};
+enum class Conformity_graph {GNP_Graph, WS_Graph, Barabashi_graph};
 enum class Conformity_conformitylevel_type {ThresholdConformityLevel, RandomConformityLevel};
 enum class Conformity_conformists {ConformistsOnly, NonConformistsOnly, MixedConformists};
 enum class Conformity_restrictions {Restrict_to_inactive, Restrict_to_active, Restrict_nothing};
@@ -20,6 +31,287 @@ enum class Conformity_At_End {GEQEnd,LEQEnd,Undefined};
 int strtoi(string s){
 	int x = atoi(s.c_str());
 	return x;
+}
+double strtodouble(string s){
+	return atof(s.c_str());
+}
+int twoceil(int k){//returns closest upside degree of 2
+	int t=1;
+	while (t<k){t=t*2;}
+	return t;
+}
+string inttostr(int number)
+{
+   stringstream ss;//create a stringstream
+   ss << number;//add number to the stream
+   return ss.str();//return a string with the contents of the stream
+}
+string dbltostr(double number)
+{
+   stringstream ss;//create a stringstream
+   ss << number;//add number to the stream
+   return ss.str();//return a string with the contents of the stream
+}
+class GVinfo{
+	public:
+		string id;
+		string fillcolor;
+		double height;
+		double width;
+		string label;
+		string shape;
+		string style;
+		string xlabel;
+		double pos_x;
+		double pos_y;
+		GVinfo(){
+			id="";
+			fillcolor="";
+			height=0;
+			width=0;
+			pos_x=0;
+			pos_y=0;	
+		}
+		GVinfo(string id_in, string fc, double h, double w, string lab, string xlab, double x, double y){
+			id=id_in;
+			fillcolor=fc;
+			height=h;
+			width=w;
+			label=lab;
+			xlabel=xlab;
+			pos_x=x;
+			pos_y=y;
+		}	
+		void extract_value(string f, string & lp, string  &rp){
+			int k1=f.find('=');
+			lp=f.substr(0,k1);
+			rp=f.substr(k1+1);
+		}
+		void parse (string in){
+			int k1=-1;
+			int k2=0;
+			vector<string> descr;
+			int i=0;
+			bool depth=true;
+			while (i<in.length()){
+				if (in[i]=='\"') depth=!depth;
+				if ((depth&(in[i]=='['))||(depth&(in[i]==','))||(depth&(in[i]==']'))){
+					string tmp=in.substr(k1+1,i-1-k1);
+					descr.push_back(tmp);					
+					k1=i;
+				}
+				i++;
+			}
+			id=descr[0];
+			while (id.find(' ')!=string::npos){
+				id.replace((size_t)id.find(' '),1,"");
+			}
+			for (int i=1;i<descr.size();i++){
+				string lp;
+				string rp;
+				extract_value(descr[i],lp,rp);
+				if (lp=="height"){
+					height=strtodouble(rp);
+				}
+				if (lp=="width"){
+					width=strtodouble(rp);
+				}
+				if (lp=="label"){
+					label=rp;
+				}
+				if (lp=="xlabel"){
+					xlabel=rp;
+				}
+				if (lp=="shape"){
+					shape=rp;
+				}
+				if (lp=="style"){
+					style=rp;
+				}
+				if (lp=="fillcolor"){
+					fillcolor=rp;
+				}
+				if (lp=="pos"){
+					string t1=rp.substr(1,rp.find(',')-1);
+					pos_x=strtodouble(t1);
+					t1=rp.substr(rp.find(',')+1);
+					t1=t1.substr(0,t1.length()-1);
+					pos_y=strtodouble(t1);
+				}
+			}
+		}
+		string Tostring(){
+			string res;
+			res=id+"\t[";
+			res+="fillcolor="+(fillcolor==""?"\"\"":fillcolor)+",\n\t";			
+			res+="height="+dbltostr(height)+",\n\t";
+			res+="label="+(label==""?"\"\"":label)+",\n\t";
+			res+="xlabel="+(xlabel==""?"\"\"":xlabel)+",\n\t";
+			res+="pos=\""+dbltostr(pos_x)+","+dbltostr(pos_y)+"\",\n\t";
+			res+="shape="+shape+",\n\t";
+			res+="style="+(style==""?"\"\"":style)+",\n\t";
+			res+="width="+dbltostr(width)+"];\n";
+			return res;
+		}
+};
+class GVedge{
+public:
+	string arrowhead;
+	string color;
+	int lp;
+	int rp;
+	void parse (int l, int r, string ah, string cl){
+		lp=l;
+		rp=r;
+		arrowhead=ah;
+		color=cl;
+	}
+	GVedge(int l, int r, string ah, string cl){
+		parse(l,r,ah,cl);
+	}
+	string Tostring(){
+		string res="v_"+inttostr(lp+1) + " -> v_" + inttostr(rp+1) + "\t[arrowhead="+arrowhead+
+			",\n\t"+"color="+color+"];\n";
+		return res;
+	}
+};
+class GV_graph{
+public:
+	vector<GVinfo> nodes;
+	vector<GVedge> edges;
+	string headers;
+	vector<int> gv_conformitylevels;
+	vector<int> gv_vertexdegrees;
+	vector<int> gv_agitators;
+	vector<int> gv_loyalists;
+	GV_graph(){
+		headers="";
+	}
+	void loadedges(vector<int> matrix, int dim){
+		for (int i=0;i<dim;i++){
+			for (int j=0;j<dim;j++){
+				if (matrix[i*dim+j]==1){
+					GVedge a(i,j,"normal","black");
+					edges.push_back(a);
+				}
+			}
+		}
+	}
+	void parse(string filename);
+	int find_index(string name){
+		int res=-1;
+		for (int i=0;i<nodes.size();i++){
+			if (nodes[i].id==name) {
+				res=i;
+				return res;
+			}
+		}
+		return res;
+	}
+
+	GV_graph(string filename){ 
+		nodes.clear();
+		headers="";
+		parse(filename);
+	}	
+	void loaddata(vector<int> agitators, vector<int> loyalists, vector<int> conformitylevels, vector<int> degrees);
+	void refresh(vector<int> current_input, vector<int> activity);
+	void print (string filename);
+};
+
+void GV_graph::parse(string filename){
+	ifstream in;
+	in.open(filename.c_str());
+	string res;
+	string buf;
+	string s;
+	string old_s;
+	bool readingblock=false;
+	getline(in,s);
+	headers+=s;
+	while (in.good()){
+		getline(in,s);
+		
+		if ((!readingblock)&&(s.find(" [")!=string::npos)){
+			readingblock=true;
+			buf="";
+		}
+
+		buf+=s;
+		if (s.find("];")!=string::npos){
+			readingblock=false;
+			
+			if (buf.find("graph")!=string::npos){
+				headers+=buf;				
+			}
+			else if ((buf.find("->")==string::npos)&&(buf.find("info")==string::npos)){				
+				while (buf.find('\t')!=string::npos){
+					buf.replace((size_t)buf.find('\t'),1,"");
+				}
+				GVinfo tmp;
+				tmp.parse(buf);
+				nodes.push_back(tmp);			
+			}
+		}
+	}
+	in.close();
+}
+void GV_graph::loaddata(vector<int> agitators, vector<int> loyalists, vector<int> conformitylevels, vector<int> degrees){
+	gv_conformitylevels=conformitylevels;
+	gv_agitators=agitators;
+	gv_loyalists=loyalists;
+	gv_vertexdegrees=degrees;
+}
+
+void GV_graph::refresh(vector<int> current_input, vector<int> activity){
+	for (int i=0;i<activity.size();i++){
+
+		int cv_ind=find_index((string)("v_"+inttostr(i+1)));
+		
+		if (gv_agitators[i]==1){
+			nodes[cv_ind].shape="doublecircle";
+			nodes[cv_ind].fillcolor="crimson";
+			nodes[cv_ind].style="\"filled\"";
+			nodes[cv_ind].xlabel="\"A ["+inttostr(gv_vertexdegrees[i])+"]\"";
+		}
+		if (gv_loyalists[i]==1){
+			nodes[cv_ind].shape="doublecircle";
+			nodes[cv_ind].fillcolor="lawngreen";
+			nodes[cv_ind].style="\"filled\"";
+			nodes[cv_ind].xlabel="\"L ["+inttostr(gv_vertexdegrees[i])+"]\"";
+		}
+		if ((gv_agitators[i]==0)&&(gv_loyalists[i]==0)){
+			if (activity[i]==1) {
+				nodes[cv_ind].fillcolor="lightsalmon";
+			}else{
+				nodes[cv_ind].fillcolor="lightskyblue";
+			}
+			nodes[cv_ind].shape="circle";
+			nodes[cv_ind].style="\"filled\"";
+			nodes[cv_ind].xlabel="\""+ inttostr(current_input[i])+"("+inttostr(gv_conformitylevels[i])+")["+inttostr(gv_vertexdegrees[i])+"]\"";			
+		}
+	}
+	for (int i=0;i<edges.size();i++){
+		if (activity[edges[i].lp]==1){
+			edges[i].color="red";
+		}
+		else{
+			edges[i].color="green";
+		}
+	}	
+}
+void GV_graph::print(string filename){
+	ofstream out;
+	out.open(filename);
+	out<<headers<<endl;
+	for (int i=0;i<nodes.size();i++){
+		out<<nodes[i].Tostring();
+	}
+	for (int i=0;i<edges.size();i++){
+		out<<edges[i].Tostring();
+	}
+	out<<"}"<<endl;
+	out.close();
 }
 class Conformity_problem{
 public:
@@ -330,22 +622,13 @@ Conformity_Parameters::Conformity_Parameters(){
 }
 stringstream logstream;
 
-int twoceil(int k){//returns closest upside degree of 2
-	int t=1;
-	while (t<k){t=t*2;}
-	return t;
-}
-string inttostr(int number)
-{
-   stringstream ss;//create a stringstream
-   ss << number;//add number to the stream
-   return ss.str();//return a string with the contents of the stream
-}
+
 class Conformity{
 private:
 	vector <int*> M;
 	vector <int> Matrix;
 	vector <int> WeightedMatrix;
+	vector <int> vertexdegrees;
 	vector <int> Reachability;
 	vector <int> conformitylevel;
 	vector <int> conformism;
@@ -379,6 +662,7 @@ public:
 
 	void GNPgraph(double p, int n);
 	void WSgraph(int n, int k, double p);
+	void Barabashi_graph(int n, int k);
 
 	void make_conformity_levels(Conformity_conformitylevel_type conformity_type, double conformity_parameter);
 	void make_conformists(Conformity_conformists conformists_type, double conformists_parameter);
@@ -403,13 +687,20 @@ public:
 			else {Mstream << - (dimension+i+1) <<" 0"<<endl;}
 		}
 	}
+	void restrict_most_active(int n, bool agitated, bool loyaled){
+		vector<int> r=get_most_significant(n);
+		for (int i=0;i<r.size();i++){
+			if (agitated){Mstream<<-(r[i]+1)<<" 0"<<endl; nClauses++;}
+			if (loyaled){Mstream<<-(dimension+r[i]+1)<<" 0"<<endl; nClauses++;}						
+		}
+	}
 	void construct_reachability_matrix (int radius);
 	void construct_weights_matrix (int radius);
 	vector<int> construct_neighbourhood(int i, int radius);
-	
+	vector<int> get_most_significant(int amount);
 	vector<int> Sort(vector<int> a, int nV, int n){
-	//nVars=nV;
-	return HSort(a,n);
+		//nVars=nV;
+		return HSort(a,n);
 	}
 	vector <int> HMerge (vector<int> &a, vector<int> &b, int n);
 	vector <int> HSort (vector<int>& a, int n);
@@ -437,7 +728,13 @@ public:
 	void savematrixtofile_gv(const char * filename);
 	void loadweightsmatrixfromfile(int n, string filename);
 	
+	void printprogresstofile_neato_gv(vector<int>agitators, vector<int> loyalists, vector<int> activity, const char *filename);
+	
+	string parsedotfile(string filename);
+	void printprogresstofile_gv_dot(vector<int>agitators, vector<int> loyalists, vector<int> activity, string filename, string dotfilename);
+
 	void printprogresstofile_gv(vector<int>agitators, vector<int> loyalists, vector<int> activity, const char *filename);
+
 	void Print (const char * fn);
 	void Printmatrix();
 	
@@ -445,9 +742,9 @@ public:
 	void generalfunctioning( int step, bool agitated, bool loyaled, bool strict);
 	void generalfunctioning(Conformity_problem c_p);
 
-	void Notmoreatstart(int n, bool agitators, bool loyalists);
-	void Notlessatend(int n);
-	void Notmoreatend(int n);
+	void Notmoreatstart(int n, vector<int> tobesorted, bool agitators, bool loyalists);
+	void Notlessatend(int n, vector<int> tobesorted);
+	void Notmoreatend(int n, vector<int> tobesorted);
 	void Fixedpoint();
 	void Dump (char * fn);
 	vector<int> loadssfromfile(const char * filename);	
@@ -472,6 +769,9 @@ Conformity::Conformity(Conformity_Parameters params){
 	}
 	else if (params.conformity_graph==Conformity_graph::WS_Graph){
 		WSgraph(params.dimension,params.graph_parameter_2,params.graph_parameter_1);
+	}
+	else if (params.conformity_graph==Conformity_graph::Barabashi_graph){
+		Barabashi_graph(params.dimension,6);
 	}
 
 	//weights_matrix 
@@ -578,6 +878,7 @@ void Conformity::loadmatrixfromfile(int n, const char * filename){
 			}
 		  }
 		}		
+
 	if (Matrix.size()!=dimension*dimension){cout<<endl<<"Matrix size"<<Matrix.size()<<" is wrong "<<endl; }	  
 	myfile.close();
 }
@@ -604,10 +905,38 @@ void Conformity::loadweightsmatrixfromfile(int n, string filename){
 		  }
 		}		
 	if (WeightedMatrix.size()!=dimension*dimension){cout<<endl<<"Weighted Matrix size"<<Matrix.size()<<" is wrong "<<endl; }	  
+	else{
+		for (int i=0;i<dimension;i++){
+			int t=0;
+			for (int j=0;j<dimension;j++){
+				t+=WeightedMatrix[j*dimension+i];
+			}
+			vertexdegrees.push_back(t);	
+		}
+	}
 	myfile.close();
+	
 }
 
-
+vector<int> Conformity::get_most_significant(int amount){
+	vector<int> res;
+	vector<int> d(vertexdegrees);
+	for (int i=0;i<dimension;i++){res.push_back(i);}
+	for(int i=0; i<dimension; i++){
+		for(int j=i+1; j<dimension; j++){
+		 if (d[j]>d[i]){
+			 int tmp=d[j];
+			 d[j]=d[i];
+			 d[i]=tmp;
+			 tmp=res[j];
+			 res[j]=res[i];
+			 res[i]=tmp;
+		 }
+		}
+	}
+	res.resize(amount);
+	return res;
+}
 void Conformity::equalize(vector<int>r1, vector<int>r2){
 	if (r1.size()!=r2.size()) exit;
 	for (int i=0;i<r1.size();i++){
@@ -626,14 +955,18 @@ void Conformity::savematrixtofile(const char* filename){
 		}
 		myfile<<endl;
 	}
-	myfile<<"Conformity level"<<endl;
-	for (int i=0;i<dimension;i++){
-		myfile<<conformitylevel[i]<<" ";
+	if (conformitylevel.size()>0){
+		myfile<<"Conformity level"<<endl;
+		for (int i=0;i<dimension;i++){
+			myfile<<conformitylevel[i]<<" ";
+		}
+		myfile<<endl;
 	}
-	myfile<<endl;
-	myfile<<"Conformism"<<endl;
-	for (int i=0;i<dimension;i++){
-		myfile<<conformism[i]<<" ";
+	if (conformism.size()>0){
+		myfile<<"Conformism"<<endl;
+		for (int i=0;i<dimension;i++){
+			myfile<<conformism[i]<<" ";
+		}	
 	}
 	myfile.close();
 }
@@ -672,7 +1005,7 @@ void Conformity::savematrixtofile_gv(const char* filename){
 	out<<"}"<<endl;
 	out.close();
 }
-void Conformity::printprogresstofile_gv(vector<int>agitators, vector<int> loyalists, vector<int> activity, const char *filename){
+void Conformity::printprogresstofile_neato_gv(vector<int>agitators, vector<int> loyalists, vector<int> activity, const char *filename){
 	ofstream out;
 	out.open(filename);
 	double radius = 5;
@@ -709,8 +1042,8 @@ void Conformity::printprogresstofile_gv(vector<int>agitators, vector<int> loyali
 	}
 	out << ";" << endl;
 	if (hasinactive){//inactive
-		//out << "\tnode [shape=circle, fillcolor=lightskyblue, style=\"filled\"];";
-		out << "\tnode [shape=circle];";
+		out << "\tnode [shape=circle, fillcolor=lightskyblue, style=\"filled\"];";
+	//	out << "\tnode [shape=circle];";
 		for (int i = 0; i < activity.size(); i++)
 		{
 			if ((activity[i] == 0) && (loyalists[i] == 0)){ out << " v_" << i + 1; }
@@ -726,8 +1059,8 @@ void Conformity::printprogresstofile_gv(vector<int>agitators, vector<int> loyali
 		out << ";" << endl;
 	}
 	if (hasactive){
-		//out << "\tnode [shape=circle, fillcolor=lightsalmon, style=\"filled\"];";
-		out << "\tnode [shape=doublecircle];";
+		out << "\tnode [shape=circle, fillcolor=lightsalmon, style=\"filled\"];";
+		//out << "\tnode [shape=doublecircle];";
 		for (int i = 0; i < activity.size(); i++)
 		{
 			if ((activity[i] == 1) && (agitators[i] == 0)){ out << " v_" << i + 1; }
@@ -735,8 +1068,8 @@ void Conformity::printprogresstofile_gv(vector<int>agitators, vector<int> loyali
 		out << ";" << endl;
 	}
 	if (hasagit){
-		//out << "\tnode [shape=circle, fillcolor=crimson, style=\"filled\"];";
-		out << "\tnode [shape=diamond];";
+		out << "\tnode [shape=circle, fillcolor=crimson, style=\"filled\"];";
+		//out << "\tnode [shape=diamond];";
 		for (int i = 0; i < activity.size(); i++)
 		{
 			if (agitators[i] == 1){ out << " v_" << i + 1; }
@@ -749,7 +1082,7 @@ void Conformity::printprogresstofile_gv(vector<int>agitators, vector<int> loyali
 		double x = cos((M_PI * 2)*i / dimension)*radius;
 		double y = sin((M_PI * 2)*i/ dimension)*radius;
 		if (agitators[i] == 1){
-			out << "\tv_" << i + 1 << "[label=\"v_" << i + 1 << "\", pos=\"" << x << "," << y << "!\", shape = \"diamond\"];" << endl;
+			out << "\tv_" << i + 1 << "[label=\"v_" << i + 1 << "\", pos=\"" << x << "," << y << "!\", shape = \"circle\"];" << endl;
 		}
 		else if (activity[i] == 1){
 			out << "\tv_" << i + 1 << "[label=\"v_" << i + 1 << "\", pos=\"" << x << "," << y << "!\", shape = \"doublecircle\"];" << endl;
@@ -757,11 +1090,11 @@ void Conformity::printprogresstofile_gv(vector<int>agitators, vector<int> loyali
 		else { out << "\tv_" << i + 1 << "[label=\"v_" << i + 1 << "\", pos=\"" << x << "," << y << "!\", shape = \"circle\"];" << endl; }
 		
 
-		if ((agitators[i] == 0) && (loyalists[i] == 0)) { out << "\tinfo_" << i + 1 << "[label=\"" << curinput[i] << "(" << conformitylevel[i] << ")" << "\", pos=\"" << x*1.15 << "," << y*1.15 << "!\", shape = \"plaintext\"];" << endl; }
+		if ((agitators[i] == 0) && (loyalists[i] == 0)) { out << "\tinfo_" << i + 1 << "[label=\"" << curinput[i] << "(" << conformitylevel[i] << ")" <<"["<<vertexdegrees[i]<<"]"<< "\", pos=\"" << x*1.15 << "," << y*1.15 << "!\", shape = \"plaintext\"];" << endl; }
 		else {
-			if (agitators[i] == 1){ out << "\tinfo_" << i + 1 << "[label=\"" << "A" << "\", pos=\"" << x*1.15 << "," << y*1.15 << "!\", shape = \"plaintext\"];" << endl; }
+			if (agitators[i] == 1){ out << "\tinfo_" << i + 1 << "[label=\"" << "A" <<"["<<vertexdegrees[i]<<"]"<< "\", pos=\"" << x*1.15 << "," << y*1.15 << "!\", shape = \"plaintext\"];" << endl; }
 		else 
-		if (loyalists[i] == 1){ out << "\tinfo_" << i + 1 << "[label=\"" << "L" << "\", pos=\"" << x*1.15 << "," << y*1.15 << "!\", shape = \"plaintext\"];" << endl; }
+		if (loyalists[i] == 1){ out << "\tinfo_" << i + 1 << "[label=\"" << "L"<<"["<<vertexdegrees[i]<<"]" << "\", pos=\"" << x*1.15 << "," << y*1.15 << "!\", shape = \"plaintext\"];" << endl; }
 
 		}
 	}
@@ -772,10 +1105,10 @@ void Conformity::printprogresstofile_gv(vector<int>agitators, vector<int> loyali
 			if (matrixelement(i, j)>0){
 				out << "\t" << "v_" << j + 1 << " -> v_" << i + 1 << " [ label=\"\",";
 				switch (activity[j]){
-				//case 0: out << "color=\"green\","; break;
-				//case 1: out << "color=\"red\","; break;
-				case 0: out << "style=\"dashed\","; break;
-				case 1: out << "style=\"solid\","; break;
+				case 0: out << "color=\"green\","; break;
+				case 1: out << "color=\"red\","; break;
+				//case 0: out << "style=\"dashed\","; break;
+				//case 1: out << "style=\"solid\","; break;
 				}
 				out << "arrowhead=\"normal\" ];" << endl;
 			}
@@ -785,6 +1118,197 @@ void Conformity::printprogresstofile_gv(vector<int>agitators, vector<int> loyali
 	
 	out.close();
 }
+
+void Conformity::printprogresstofile_gv(vector<int>agitators, vector<int> loyalists, vector<int> activity, const char *filename){
+	ofstream out;
+	out.open(filename);
+	vector<int> curinput;
+	bool hasagit = false;
+	bool hasloyal = false;
+	bool hasactive = false;
+	bool hasinactive = false;
+	for (int i = 0; i < agitators.size(); i++){
+		if (agitators[i] == 1)hasagit = true;
+		if (loyalists[i] == 1)hasloyal = true;
+		if ((activity[i] == 1)&&(agitators[i]==0))hasactive = true;
+		if ((activity[i] == 0) && (loyalists[i] == 0))hasinactive = true;
+	}
+	for (int i = 0; i < dimension; i++){
+		int cursum = 0;
+		for (int j = 0; j < dimension; j++){
+			if ((matrixelement(i, j) == 1) && (activity[j] == 1)) cursum++;
+		}
+		if (agitators[i] == 1){ curinput.push_back(0); }
+		if (loyalists[i] == 1){ curinput.push_back(dimension); }
+		if ((agitators[i] == 0) && (loyalists[i] == 0)){
+			curinput.push_back(cursum);
+		}
+	}
+
+	out << "digraph ppp {" << endl;
+	out << "\trankdir=LR;" << endl;
+	out << "\tnode [shape=plaintext];";
+	for (int i = 0; i < activity.size(); i++)
+	{
+	out << " info_" << i + 1;
+	}
+	out << ";" << endl;
+	if (hasinactive){//inactive
+		out << "\tnode [shape=circle, fillcolor=lightskyblue, style=\"filled\"];";
+	//	out << "\tnode [shape=circle];";
+		for (int i = 0; i < activity.size(); i++)
+		{
+			if ((activity[i] == 0) && (loyalists[i] == 0)){ out << " v_" << i + 1; }
+		}
+		out << ";" << endl;
+	}
+	if (hasloyal){//loyalists
+		out << "\tnode [shape=circle, fillcolor=lawngreen, style=\"filled\"];";
+		for (int i = 0; i < activity.size(); i++)
+		{
+			if (loyalists[i] == 1){ out << " v_" << i + 1; }
+		}
+		out << ";" << endl;
+	}
+	if (hasactive){
+		out << "\tnode [shape=circle, fillcolor=lightsalmon, style=\"filled\"];";
+		//out << "\tnode [shape=doublecircle];";
+		for (int i = 0; i < activity.size(); i++)
+		{
+			if ((activity[i] == 1) && (agitators[i] == 0)){ out << " v_" << i + 1; }
+		}
+		out << ";" << endl;
+	}
+	if (hasagit){
+		out << "\tnode [shape=circle, fillcolor=crimson, style=\"filled\"];";
+		//out << "\tnode [shape=diamond];";
+		for (int i = 0; i < activity.size(); i++)
+		{
+			if (agitators[i] == 1){ out << " v_" << i + 1; }
+		}
+		out << ";" << endl;
+	}
+	
+	for (int i = 0; i < dimension; i++){
+
+	
+		if (agitators[i] == 1){
+			out << "\tv_" << i + 1 << "[label=<v<SUB>" << i + 1 << "</SUB>>, shape = \"circle\"];" << endl;
+		}
+		else if (activity[i] == 1){
+			out << "\tv_" << i + 1 << "[label=<v<SUB>" << i + 1 << "</SUB>>, shape = \"doublecircle\"];" << endl;
+		}
+		else { out << "\tv_" << i + 1 << "[label=<v<SUB>" << i + 1 << "</SUB>>, shape = \"circle\"];" << endl; }
+		
+
+		if ((agitators[i] == 0) && (loyalists[i] == 0)) { out << "\tinfo_" << i + 1 << "[label=\"" << curinput[i] << "(" << conformitylevel[i] << ")" <<"["<<vertexdegrees[i]<<"]"<< "\", shape = \"plaintext\"];" << endl; }
+		else {
+			if (agitators[i] == 1){ out << "\tinfo_" << i + 1 << "[label=\"" << "A" <<"["<<vertexdegrees[i]<<"]"<< "\", shape = \"plaintext\"];" << endl; }
+		else 
+		if (loyalists[i] == 1){ out << "\tinfo_" << i + 1 << "[label=\"" << "L"<<"["<<vertexdegrees[i]<<"]" << "\", shape = \"plaintext\"];" << endl; }
+
+		}
+	}	
+
+	for (int i = 0; i<dimension; i++){
+		for (int j = 0; j<dimension; j++){
+			if (matrixelement(i, j)>0){
+				out << "\t" << "v_" << j + 1 << " -> v_" << i + 1 << " [ label=\"\",";
+				switch (activity[j]){
+				case 0: out << "color=\"green\","; break;
+				case 1: out << "color=\"red\","; break;
+				//case 0: out << "style=\"dashed\","; break;
+				//case 1: out << "style=\"solid\","; break;
+				}
+				out << "arrowhead=\"normal\" ];" << endl;
+			}
+		}
+	}
+	out << "}" << endl;
+	
+	out.close();
+}
+
+
+
+string Conformity::parsedotfile(string filename){
+	ifstream in;
+	in.open(filename.c_str());
+	string res;
+	string buf;
+	string s;
+	vector<GVinfo> tr;
+	bool blockread=true;
+	bool accept=false;
+	while (in.good()){
+		getline (in,s);
+		if ((s.find(" [")!=string::npos)&&(s.find('->')==string::npos)){blockread=true;}
+		if ((s.find("[fillcolor")!=string::npos)&&(s.find('->')==string::npos)){accept=true;}
+		if (blockread) res=res+s+'\n';
+		if (accept) buf+=s;
+		if (s.find("];")!=string::npos){blockread=false;accept=false;}
+		if ((!accept)&&(buf.size()>0)){			
+			while (buf.find('\t')!=string::npos){
+				buf.replace((size_t)buf.find('\t'),1,"");
+			}
+			GVinfo tmp;
+			tmp.parse(buf);
+			tr.push_back(tmp);
+			buf="";
+		}
+	}
+	in.close();
+	return res;
+}
+
+void Conformity::printprogresstofile_gv_dot (vector<int>agitators, vector<int> loyalists, vector<int> activity, string filename, string dotfilename){
+	ofstream out;
+	out.open(filename);
+	string temp=parsedotfile(dotfilename);
+	out<<temp.c_str();
+	vector<int> curinput;
+	bool hasagit = false;
+	bool hasloyal = false;
+	bool hasactive = false;
+	bool hasinactive = false;
+	for (int i = 0; i < agitators.size(); i++){
+		if (agitators[i] == 1)hasagit = true;
+		if (loyalists[i] == 1)hasloyal = true;
+		if ((activity[i] == 1)&&(agitators[i]==0))hasactive = true;
+		if ((activity[i] == 0) && (loyalists[i] == 0))hasinactive = true;
+	}
+	for (int i = 0; i < dimension; i++){
+		int cursum = 0;
+		for (int j = 0; j < dimension; j++){
+			if ((matrixelement(i, j) == 1) && (activity[j] == 1)) cursum++;
+		}
+		if (agitators[i] == 1){ curinput.push_back(0); }
+		if (loyalists[i] == 1){ curinput.push_back(dimension); }
+		if ((agitators[i] == 0) && (loyalists[i] == 0)){
+			curinput.push_back(cursum);
+		}
+	}
+	
+	for (int i = 0; i<dimension; i++){
+		for (int j = 0; j<dimension; j++){
+			if (matrixelement(i, j)>0){
+				out << "\t" << "v_" << j + 1 << " -> v_" << i + 1 << " [ label=\"\",";
+				switch (activity[j]){
+				case 0: out << "color=\"green\","; break;
+				case 1: out << "color=\"red\","; break;
+				//case 0: out << "style=\"dashed\","; break;
+				//case 1: out << "style=\"solid\","; break;
+				}
+				out << "arrowhead=\"normal\" ];" << endl;
+			}
+		}
+	}
+	out << "}" << endl;
+	
+	out.close();
+}
+
+
 void Conformity::construct_reachability_matrix (int radius){
 	vector<int> t(Matrix);
 	if (radius>1){
@@ -1119,15 +1643,41 @@ bool Conformity::calculate(vector<int> inp, Conformity_Parameters conf_params, C
 	vector<int> nextstep;
 	string logfile=filename;
 	ofstream log_out;
-	log_out.open(logfile.c_str());
-
-	string tmpprogress=filename;
-	bool a = true;
-	for (int i = 0; i<dimension; i++){
-		agitators.push_back(inp[i]);
-		loyalists.push_back(inp[dimension + i]);
-		curstep.push_back(inp[dimension * 2 + i]);
+	GV_graph gvg;
+	string newpathname=filename+"_detailed\\";
+	
+	string bat_filename=newpathname+"make_images.bat";
+	ofstream out_bat;
+	
+	if (verbosity) {
+		std::wstring stemp = s2ws(newpathname);
+		LPCWSTR result = stemp.c_str();
+		CreateDirectory(result, NULL);
+		out_bat.open(bat_filename);
+		out_bat<<"cd /d "<<newpathname<<endl;
 	}
+
+	bool agitated=conf_problem.Hasagitators; // true if we have agitators
+	bool loyaled=conf_problem.Hasloyalists;  // true if we have loyalists
+
+	log_out.open(logfile.c_str());
+	
+	bool a = true;
+	int reservation=0;
+	if (agitated) reservation++;
+	if (loyaled) reservation++;
+	if (!agitated&loyaled) reservation=1;
+	for (int i = 0; i<dimension; i++){
+		if (agitated) agitators.push_back(inp[i]); else agitators.push_back(0);
+		if (loyaled) loyalists.push_back(inp[dimension + i]); else loyalists.push_back(0);
+		curstep.push_back(inp[dimension * reservation + i]);
+	}
+
+	vector<int>curinput;
+	for (int i = 0; i < dimension; i++){		
+			curinput.push_back(0);		
+	}
+
 	if (verbosity==true) {
 		cout << endl << "Agitators" << endl;
 		log_out << endl << "Agitators" << endl;
@@ -1154,13 +1704,32 @@ bool Conformity::calculate(vector<int> inp, Conformity_Parameters conf_params, C
 			cout << curstep[d] << " ";
 			log_out << curstep[d] << " ";			
 		}
-		string tmp = tmpprogress + "_0.txt";
-		//printprogresstofile_gv(agitators, loyalists, curstep, tmp.c_str());
+		if (verbosity){
+			string tmp = "step_0.txt";
+			string tmpimg = "step_0.dot";
+			string tmpimg2 = "step_0.png";
+			printprogresstofile_gv(agitators, loyalists, curstep, (newpathname+tmp).c_str());
+			out_bat<<"sfdp -Tdot "<<tmp<<" -o "<<tmpimg<<endl;			
+			out_bat.close();
+			system(bat_filename.c_str());
+			gvg.parse(newpathname+tmpimg);
+			gvg.loadedges(Matrix,dimension);
+			gvg.loaddata(agitators,loyalists,conformitylevel,vertexdegrees);
+			gvg.refresh(curinput,curstep);
+			gvg.print(newpathname+tmp);
+
+		//	printprogresstofile_gv_dot(agitators, loyalists, curstep, (newpathname+tmp).c_str(),newpathname+"step_0.dot");
+			out_bat.open(bat_filename);
+			out_bat<<"cd /d "<<newpathname<<endl;
+			out_bat<<"sfdp -Tpng "<<tmp<<" -o "<<tmpimg2<<endl;
+		}
 		log_out << endl;
 		cout << endl;
 	}
+
 	for (int k = 0; k<conf_params.number_of_steps; k++){
 		nextstep.clear();
+		curinput.clear();
 		for (int i = 0; i<dimension; i++){
 			int cursum = 0;
 			int deg = 0;
@@ -1171,6 +1740,7 @@ bool Conformity::calculate(vector<int> inp, Conformity_Parameters conf_params, C
 				if ((curstep[j] == 1)) cursum+=WeightedMatrix[j*dimension+i];
 				//if ((matrixelement(i, j) == 1) && (curstep[i] == 1)) cursum++;
 			}
+			curinput.push_back(cursum);
 			if (conformism[i] == 1){
 				if (agitators[i] == 1){ nextstep.push_back(1); }
 				else{
@@ -1201,16 +1771,22 @@ bool Conformity::calculate(vector<int> inp, Conformity_Parameters conf_params, C
 		curstep = nextstep;
 		bool b = true;
 		for (int i = 0; i<dimension; i++){
-			if (curstep[i] != inp[(2 + k + 1)*dimension + i]){
+			if (curstep[i] != inp[(reservation + k + 1)*dimension + i]){
 				cout << endl << "Correctness on step " << k + 1 << " point  " << i << " is failed" << endl;
 				log_out << endl << "Correctness on step " << k + 1 << " point  " << i << " is failed" << endl;
 				b = false;
 				a = false;
 			}
 		}
-		if (verbosity==true){
-			string tmp = tmpprogress + "_"+inttostr(k+1)+".txt";
-			//printprogresstofile_gv(agitators, loyalists, curstep, tmp.c_str());
+		if (verbosity==true){			
+			if (verbosity){
+				string tmp =  "step_"+inttostr(k+1)+".txt";
+				string tmpimg = "step_"+inttostr(k+1)+".png";				
+				gvg.refresh(curinput,curstep);
+				gvg.print(newpathname+tmp);
+				//printprogresstofile_gv_dot(agitators, loyalists, curstep, (newpathname+tmp).c_str(), newpathname+"step_0.dot");			
+				out_bat<<"sfdp -Tpng "<<tmp<<" -o "<<tmpimg<<endl;
+			}
 
 			cout << endl << "Step " << k + 1 << endl;
 			log_out << endl << "Step " << k + 1 << endl;
@@ -1226,11 +1802,17 @@ bool Conformity::calculate(vector<int> inp, Conformity_Parameters conf_params, C
 			log_out << endl << "Step " << k + 1 << " is correct" << endl;
 		}
 	}
-	return a;	
+	if (verbosity) {
+		out_bat.close();
+		system(bat_filename.c_str());
+	}
 	log_out.close();
+	
+	return a;	
+	
 }
 
-void Conformity::Notmoreatstart(int n, bool agitators, bool loyalists){
+void Conformity::Notmoreatstart(int n, vector<int> tobesorted, bool agitators, bool loyalists){
 	
 	const int nzero=++nVars; //zero variable
 	int * tmp;
@@ -1240,22 +1822,16 @@ void Conformity::Notmoreatstart(int n, bool agitators, bool loyalists){
 	Mstream<<tmp[0]<<" "<<tmp[1]<<endl;
 	nClauses++;
 	//M.push_back(tmp);
-	vector<int> tobesorted;
-	for (int i=0;i<dimension;i++){
-		if (!agitators&&!loyalists){
-		tobesorted.push_back(dimension*2+i+1);
-		}
-		else if (agitators) {
-			tobesorted.push_back(i+1);
-		}
-		else if (loyalists) {
-			tobesorted.push_back(dimension+i+1);
-		}
-	}
 	int hcnt=twoceil(tobesorted.size());
 	for (int i=tobesorted.size();i<hcnt;i++){tobesorted.push_back(nzero);}
 	vector<int> r;
 	r=HSort(tobesorted,hcnt);
+	for (int i=0;i<r.size();i++){
+		Mstream<<r[i]<<" ";
+	}
+	Mstream<<"0"<<endl;
+	nClauses++;
+
 	tmp=new (int[2]);
 	tmp[0]=-r[n];
 	tmp[1]=0;
@@ -1263,8 +1839,7 @@ void Conformity::Notmoreatstart(int n, bool agitators, bool loyalists){
 	Mstream<<tmp[0]<<" "<<tmp[1]<<endl;
 	nClauses++;
 }
-void Conformity::Notlessatend(int n){
-	vector<int> tobesorted;
+void Conformity::Notlessatend(int n, vector<int> tobesorted){
 	const int nzero=++nVars; //zero variable
 	int * tmp;
 	tmp=new(int[2]);
@@ -1273,13 +1848,15 @@ void Conformity::Notlessatend(int n){
 	//M.push_back(tmp);
 	Mstream<<tmp[0]<<" "<<tmp[1]<<endl;
 	nClauses++;
-	for (int i=0;i<dimension;i++){
-		tobesorted.push_back(dimension*(nofsteps+2)+i+1);
-	}
 	int hcnt=twoceil(tobesorted.size());
 	for (int i=tobesorted.size();i<hcnt;i++){tobesorted.push_back(nzero);}
 	vector<int> r;
 	r=HSort(tobesorted,hcnt);
+	for (int i=0;i<r.size();i++){
+		Mstream<<r[i]<<" ";
+	}
+	Mstream<<"0"<<endl;
+	nClauses++;
 	tmp=new(int[2]);
 	tmp[0]=r[n];
 	tmp[1]=0;
@@ -1287,8 +1864,7 @@ void Conformity::Notlessatend(int n){
 	Mstream<<tmp[0]<<" "<<tmp[1]<<endl;
 	nClauses++;
 }
-void Conformity::Notmoreatend(int n){
-	vector<int> tobesorted;
+void Conformity::Notmoreatend(int n, vector<int> tobesorted){
 	const int nzero=++nVars; //zero variable
 	int * tmp;
 	tmp=new(int[2]);
@@ -1296,14 +1872,16 @@ void Conformity::Notmoreatend(int n){
 	tmp[1]=0;
 	//M.push_back(tmp);
 	Mstream<<tmp[0]<<" "<<tmp[1]<<endl;
-	nClauses++;
-	for (int i=0;i<dimension;i++){
-		tobesorted.push_back(dimension*(nofsteps+2)+i+1);
-	}
+	nClauses++;	
 	int hcnt=twoceil(tobesorted.size());
 	for (int i=tobesorted.size();i<hcnt;i++){tobesorted.push_back(nzero);}
 	vector<int> r;
 	r=HSort(tobesorted,hcnt);
+	for (int i=0;i<r.size();i++){
+		Mstream<<r[i]<<" ";
+	}
+	Mstream<<"0"<<endl;
+	nClauses++;
 	tmp=new(int[2]);
 	tmp[0]=-r[n];
 	tmp[1]=0;
@@ -1376,6 +1954,8 @@ void Conformity::GNPgraph(double p, int n){
 		cout<<endl;
 	}
 }
+
+
 void Conformity::WSgraph (int n, int k, double prob){
 	vector<int>wsmatrix;
 	//construct a regular ring
@@ -1444,6 +2024,53 @@ void Conformity::WSgraph (int n, int k, double prob){
 		cout<<endl;
 	}
 }
+void Conformity::Barabashi_graph(int n, int k){
+	dimension=n;
+	nVars=n;
+	nClauses=0;
+	vector<int> degrees;
+	int degsum=0;
+	for (int i=0;i<n;i++){
+		degrees.push_back(0);
+		for (int j=0;j<n;j++){
+			Matrix.push_back(0);
+		}	
+	}
+	//initialize simple structure of k elements first
+	for (int i=0;i<k;i++){
+		Matrix[i*n+i+1]=1;
+		Matrix[(i+1)*n+i]=1;
+		degrees[i]++;
+		degrees[i+1]++;
+		degsum++;
+	}
+	
+	int RM=RAND_MAX;
+	srand (time(NULL));
+	for (int i=k;i<n;i++){
+		bool connected=false;
+		for (int j=0;j<i;j++){
+			double t=double(rand())/RM;
+			double tr=double(degrees[j])/degsum;			
+			if (t<tr){
+				connected=true;
+				degrees[j]++;
+				degrees[i]++;
+				degsum+=2;
+				Matrix[j*n+i]=1;
+				Matrix[i*n+j]=1;
+			}
+		}
+		if (!connected) i--;
+	}
+	cout<<endl<<"Graph matrix "<<endl;
+	for (int i=0;i<dimension;i++){
+		for (int j=0;j<dimension;j++){
+			cout<<Matrix[i*dimension+j]<<" ";
+		}
+		cout<<endl;
+	}
+}
 void Conformity::make_conformity_levels(Conformity_conformitylevel_type conformity_type, double conformity_parameter){
 	if ((conformity_parameter>1)||(conformity_parameter<0)) exit;
 	int RM=RAND_MAX;
@@ -1456,7 +2083,7 @@ void Conformity::make_conformity_levels(Conformity_conformitylevel_type conformi
 		for (int j=0;j<dimension;j++){
 			t+=WeightedMatrix[j*dimension+i];
 		}
-
+		vertexdegrees.push_back(t);
 		cout<<t<<" ";
 
 		if (conformity_type == Conformity_conformitylevel_type::RandomConformityLevel){
@@ -1501,20 +2128,21 @@ int Conformity::initializeconformity (double percent, double prob){
 	int RM=RAND_MAX;
 	srand (time(NULL));
 	for (int i=0;i<dimension;i++){
-	int t=0;
-	for (int j=0;j<dimension;j++){
-	t+=matrixelement(i,j);
-	}
-	if (conf_percent==0){
-		conformitylevel.push_back(rand()*t/RM);		
-		if (conformitylevel[i]==0){conformitylevel[i]=1;}
-		cout<<"degree = "<<t<<", CLevel= "<<conformitylevel[i]<<endl;		
-	}
-	else {conformitylevel.push_back(t*percent+1);}
-	//conformitylevel.push_back(rand()*t/RM+1);
-	//	conformism.push_back(rand()%2);
+		int t=0;
+		for (int j=0;j<dimension;j++){
+			t+=matrixelement(i,j);
+		}
+		vertexdegrees.push_back(t);
+		if (conf_percent==0){
+			conformitylevel.push_back(rand()*t/RM);		
+			if (conformitylevel[i]==0){conformitylevel[i]=1;}
+			cout<<"degree = "<<t<<", CLevel= "<<conformitylevel[i]<<endl;		
+		}
+		else {conformitylevel.push_back(t*percent+1);}
+		//conformitylevel.push_back(rand()*t/RM+1);
+		//	conformism.push_back(rand()%2);
 	
-	if (rand()<(prob*RM)){conformism.push_back(1);} else {conformism.push_back(0);}
+		if (rand()<(prob*RM)){conformism.push_back(1);} else {conformism.push_back(0);}
 	}
 	return 1;
 }
@@ -1769,24 +2397,29 @@ void Conformity::generalfunctioning(int step, bool agitated, bool loyaled, bool 
 
 void Conformity::generalfunctioning(Conformity_problem c_p){
 	Mstream.clear();
-	nVars = (nofsteps+3)*dimension; // reserve first variables to be something meaningful
-	const int nzero=++nVars; //zero variable
-	Mstream<<-nzero<<" 0"<<endl;
-	nClauses++;
-
 	vector<int> agitators;
 	vector<int> loyalists;
 	vector<int> firststep;
-
-	for (int i=0;i<dimension;i++){
-		agitators.push_back(i+1);
-		loyalists.push_back(-(dimension+i+1)); //notice the minus!!!
-		firststep.push_back(dimension*2+i+1);
-	}
+		
 
 	bool agitated=c_p.Hasagitators; // true if we have agitators
 	bool loyaled=c_p.Hasloyalists;  // true if we have loyalists
 	bool strict; // true if say only agitators should be active
+	
+	int reservation_k=1;
+	if (agitated) reservation_k=2;
+	if (loyaled) reservation_k=3;
+
+	for (int i=0;i<dimension;i++){
+		agitators.push_back(i+1);
+		loyalists.push_back(-(dimension+i+1)); //notice the minus!!!
+		firststep.push_back(dimension*(reservation_k-1)+i+1);
+	}
+
+	nVars = (nofsteps+reservation_k)*dimension; // reserve first variables to be something meaningful
+	const int nzero=++nVars; //zero variable
+	Mstream<<-nzero<<" 0"<<endl;
+	nClauses++;
 
 	vector<int> curstep_vars;
 	//zero step = initialization required if agitated or loyaled !=0
@@ -1816,6 +2449,7 @@ void Conformity::generalfunctioning(Conformity_problem c_p){
 			//if (strict){Mstream<<-loyalists[i]<<" "<<firststep[i]<<" 0"<<endl;}
 		}// if loyaled then 0
 	}
+
  	for (int k=0;k<nofsteps;k++){//steps
 		curstep_vars.clear();
 		for (int i=0;i<dimension;i++){//vertices
@@ -1828,7 +2462,7 @@ void Conformity::generalfunctioning(Conformity_problem c_p){
 			int neighbourssize=neighbours.size();	
 			int hcnt=twoceil(neighbours.size());
 			vector<int> tobesorted;
-			for (int v=0;v<neighbours.size();v++){tobesorted.push_back((k+2)*dimension+neighbours[v]+1);}
+			for (int v=0;v<neighbours.size();v++){tobesorted.push_back((k+reservation_k-1)*dimension+neighbours[v]+1);}
 			for (int v=neighbours.size();v<hcnt;v++){tobesorted.push_back(nzero);}			
 			vector<int> sorted;
 			if (tobesorted.size()>1){
@@ -1860,7 +2494,7 @@ void Conformity::generalfunctioning(Conformity_problem c_p){
 		}	
 		vector<int>newstep;
 		for (int l=0;l<dimension;l++){
-			newstep.push_back(dimension*(k+1+2)+l+1);
+			newstep.push_back(dimension*(k+reservation_k)+l+1);
 		}
 		if (!agitated&&!loyaled){
 			equalize(newstep,curstep_vars);
@@ -1885,30 +2519,35 @@ void Conformity::generalfunctioning(Conformity_problem c_p){
 
 	int at_start=dimension*c_p.Start_Value_Percent/100;
 	int at_end=dimension*c_p.End_Value_Percent/100;
+	vector<int> laststep;	
+	for (int i=0;i<dimension;i++){
+		laststep.push_back(dimension*(nofsteps + reservation_k-1)+i+1);
+		loyalists[i]=-loyalists[i]; // tricky thing it is
+	}
 
 	if (c_p.conformity_at_start==Conformity_At_Start::GEQStart){
 		if (agitated==true){
-			Notmoreatstart(c_p.Number_of_agitators,1,0);
+			Notmoreatstart(c_p.Number_of_agitators,agitators, 1,0);
 		}
 		if (loyaled==true){
-			Notmoreatstart(c_p.Number_of_loyalists,0,1);
+			Notmoreatstart(c_p.Number_of_loyalists,loyalists, 0,1);
 		}
 	}
 	else if (c_p.conformity_at_start==Conformity_At_Start::LEQStart){
-		Notmoreatstart(at_start,0,0);
+		Notmoreatstart(at_start, firststep, 0,0);
 		if (agitated==true){
-			Notmoreatstart(c_p.Number_of_agitators,1,0);
+			Notmoreatstart(c_p.Number_of_agitators,agitators, 1,0);
 		}
-		if (loyaled==true){
-			Notmoreatstart(c_p.Number_of_loyalists,0,1);
+		if (loyaled==true){		
+			Notmoreatstart(c_p.Number_of_loyalists,loyalists, 0,1);
 		}
-	}
+	}	
 	
 	if (c_p.conformity_at_end==Conformity_At_End::GEQEnd){
-		Notlessatend(at_end);
+		Notlessatend(at_end,laststep);
 	}
 	else if (c_p.conformity_at_end==Conformity_At_End::LEQEnd){
-		Notmoreatend(at_end);
+		Notmoreatend(at_end, laststep);
 	}
 }
 
@@ -2215,778 +2854,118 @@ static inline double cpuTime( void )
 {
     return ( double )clock( ) / CLOCKS_PER_SEC; 
 }
-std::wstring s2ws(const std::string& s)
-{
-    int len;
-    int slength = (int)s.length() + 1;
-    len = MultiByteToWideChar(CP_ACP, 0, s.c_str(), slength, 0, 0); 
-    wchar_t* buf = new wchar_t[len];
-    MultiByteToWideChar(CP_ACP, 0, s.c_str(), slength, buf, len);
-    std::wstring r(buf);
-    delete[] buf;
-    return r;
-}
 
-int gentests_noagit(int noftests, int dimension, int step, double gnpprob, double confprob, double confpercent, int nomorepercent, int nolesspercent, string foldername){
-	std::wstring stemp = s2ws(foldername);
-	LPCWSTR result = stemp.c_str();
-	CreateDirectory(result, NULL);
-	string logfilename=foldername+"\\testlog.txt";
-	logstream<<"Number of tests "<<noftests<<endl;
-	logstream<<"Dimension "<<dimension<<endl;
-	logstream<<"Number of steps "<<step<<endl;
-	logstream<<"Probability (Gnp graph) "<<gnpprob<<endl;
-	logstream<<"Probablilty (conformity) "<<confprob<<endl;
-	logstream<<"Conformity ";
-	if (confpercent==0) {logstream<<"Random"<<endl;} else {logstream<<"level (percent) "<<confpercent<<endl;}
-	logstream<<"Nomoreatstart (percent) "<<nomorepercent<<endl;
-	logstream<<"Notlessatend (percent) "<<nolesspercent<<endl;	
-	int nomore=dimension*nomorepercent/100;
-	int conf=confpercent*dimension;
-	double timestart=cpuTime();
-	for (int i=0;i<noftests;i++){
-			int noless=dimension*nolesspercent/100;
-			logstream<<endl<<"Test No "<<i+1<<endl;
-			double timecycle1=cpuTime();
-			Conformity o;
-			o.GNPgraph(gnpprob,dimension);
-			o.initializeconformity(confpercent,confprob);
-			string matrixfilename=foldername+"\\matrix_"+inttostr(i+1)+".txt";
-			string matrixfilename_gv=foldername+"\\matrix_"+inttostr(i+1)+"_gv.txt";
-			o.savematrixtofile(matrixfilename.c_str());
-			o.savematrixtofile_gv(matrixfilename_gv.c_str());
-			logstream<<"Matrix file name "<<matrixfilename<<endl;
-			//o.functioning(step, agitated);
-			//o.Notmoreatstart(nomore,1,0);
-			o.Printmatrix();
-			o.generalfunctioning(step,0,0,true);
-			o.Notmoreatstart(nomore,0,0);
-			o.Notmoreatstart(0,1,0);
-			o.Notmoreatstart(0,0,1);
-			o.Notlessatend(noless);
-			//vector<int> a=o.HSort(l,k);
-			string cnffilename=foldername+"\\conf_"+inttostr(i+1)+".cnf";
-			o.Print(cnffilename.c_str());
+void runtests_Plos(int noftests, Conformity_Parameters params, Conformity_problem prob_first, Conformity_problem prob_second, string pathname, int restrictions_agit, int restrictions_loyal){
+	std::wstring stemp = s2ws(pathname);
 
-			string cnfoutputfilename=foldername+"\\conf_"+inttostr(i+1)+".out";		
-	}
+	string logfilename=pathname+"correctness_check_log.txt";
 	ofstream out;
 	out.open(logfilename);
-	out<<logstream.rdbuf();
-	logstream.clear();
-	return 1;
-}
-int gentests_noagit_fixedpoint(int noftests, int dimension, int step, double gnpprob, double confprob, double confpercent, int nomorepercent, int nolesspercent, string foldername){
-	std::wstring stemp = s2ws(foldername);
+
 	LPCWSTR result = stemp.c_str();
 	CreateDirectory(result, NULL);
-	string logfilename=foldername+"\\testlog.txt";
-	logstream<<"Number of tests "<<noftests<<endl;
-	logstream<<"Dimension "<<dimension<<endl;
-	logstream<<"Number of steps "<<step<<endl;
-	logstream<<"Probability (Gnp graph) "<<gnpprob<<endl;
-	logstream<<"Probablilty (conformity) "<<confprob<<endl;
-	logstream<<"Conformity ";
-	if (confpercent==0) {logstream<<"Random"<<endl;} else {logstream<<"level (percent) "<<confpercent<<endl;}
-	logstream<<"Nomoreatstart (percent) "<<nomorepercent<<endl;
-	logstream<<"Notlessatend (percent) "<<nolesspercent<<endl;	
-	int nomore=dimension*nomorepercent/100;
-	int conf=confpercent*dimension;
-	double timestart=cpuTime();
-	for (int i=0;i<noftests;i++){
-			int noless=dimension*nolesspercent/100;
-			logstream<<endl<<"Test No "<<i+1<<endl;
-			double timecycle1=cpuTime();
-			Conformity o;
-			o.GNPgraph(gnpprob,dimension);
-			o.initializeconformity(confpercent,confprob);
-			string matrixfilename=foldername+"\\matrix_"+inttostr(i+1)+".txt";
-			o.savematrixtofile(matrixfilename.c_str());
-			logstream<<"Matrix file name "<<matrixfilename<<endl;
-			//o.functioning(step, agitated);
-			//o.Notmoreatstart(nomore,1,0);
-			o.Printmatrix();
-			o.generalfunctioning(step,0,0,true);
-			//o.Notmoreatstart(nomore,0,0);
-			//o.Notmoreatstart(0,1,0);
-			//o.Notmoreatstart(0,0,1);
-			//o.Notlessatend(noless);
-			o.Fixedpoint();
-			//vector<int> a=o.HSort(l,k);
-			string cnffilename=foldername+"\\conf_"+inttostr(i+1)+".cnf";
-			o.Print(cnffilename.c_str());
+		
+	string param_file=pathname+"parameters.txt";
+	params.print(param_file);
 
-			string cnfoutputfilename=foldername+"\\conf_"+inttostr(i+1)+".out";		
-	}
-	ofstream out;
-	out.open(logfilename);
-	out<<logstream.rdbuf();
-	logstream.clear();
-	return 1;
-}
-int gentests_agit(int noftests, int dimension, int step, double gnpprob, double confprob, double confpercent, int nomorepercent, int nolesspercent, string foldername){
-	std::wstring stemp = s2ws(foldername);
-	LPCWSTR result = stemp.c_str();
-	CreateDirectory(result, NULL);
-	
-	
-	string logfilename=foldername+"\\testlog.txt";
-	
-	logstream<<"Number of tests "<<noftests<<endl;
-	
-	logstream<<"Dimension "<<dimension<<endl;
-	
-	logstream<<"Number of steps "<<step<<endl;
-	
-	logstream<<"Probability (Gnp graph) "<<gnpprob<<endl;
-	
-	logstream<<"Probablilty (conformity) "<<confprob<<endl;
-	
-	logstream<<"Conformity ";
-	if (confpercent==0) {logstream<<"Random"<<endl;} else {logstream<<"level (percent) "<<confpercent<<endl;}
-	logstream<<"Nomoreatstart (percent) "<<nomorepercent<<endl;
-	logstream<<"Notlessatend (percent) "<<nolesspercent<<endl;	
-	int nomore=dimension*nomorepercent/100;
+	string problem_param_file=pathname+"problem.txt";
+	prob_first.print(problem_param_file);
 
-	double timestart=cpuTime();
+	string filename_template;
+	if (params.conformity_graph==Conformity_graph::GNP_Graph){filename_template="gnp";}
+	if (params.conformity_graph==Conformity_graph::WS_Graph){filename_template="ws";}
+	filename_template+=inttostr(params.dimension)+"_";
+	filename_template+="0"+inttostr(params.graph_parameter_1*10)+"_";
+	
+	string filename_template_loyal=filename_template+"_lvsad_";
+
+	if (params.conformity_graph==Conformity_graph::WS_Graph){filename_template+=inttostr(params.graph_parameter_2)+"_";}
+	if (params.conformity_weights==Conformity_weights::Weights_at_random){filename_template+="rndw";}
+	if (params.conformity_weights==Conformity_weights::Weights_Decrease_with_distance){filename_template+="decw";}
+	if (prob_first.conformity_problem_type==Conformity_problem_type::Simple){filename_template+="_simp";}
+	if (prob_first.conformity_problem_type==Conformity_problem_type::Agitated){filename_template+="_agit";}
 	for (int i=0;i<noftests;i++){
-			int noless=dimension*nolesspercent/100;
-			logstream<<endl<<"Test No "<<i+1<<endl;
-			double timecycle1=cpuTime();
-			Conformity r;
-			string r_matrixfilename = "D:\\Tests\\Linux\\conf111\\noagit_20_03_40_80\\matrix_" + inttostr(i + 1) + ".txt";
-			r.loadmatrixfromfile(dimension, r_matrixfilename.c_str());
-			r.generalfunctioning(step, 1, 0, true);
-			r.Notmoreatstart(nomore, 0, 0);
-			r.Notmoreatstart(nomore, 1, 0);
-			r.Notmoreatstart(0, 0, 1);
-			r.Notlessatend(noless);
-			//vector<int> a=o.HSort(l,k);
-			string cnffilename = foldername + "\\conf_" + inttostr(i + 1) + ".cnf";
+			Conformity r(params);
+			r.generalfunctioning(prob_first);
+			r.restrict_most_active(restrictions_agit,true,false);
+			string r_matrixfilename = pathname+filename_template+"_matrix_" + inttostr(i + 1) + ".txt";
+			string r_gvfilename=pathname+filename_template+"_gv_"+inttostr(i+1)+".dot";
+			string r_weightsmatrixfilename = pathname+filename_template+"_weights_" + inttostr(i + 1) + ".txt";
+			r.savematrixtofile(r_matrixfilename.c_str());
+			r.savematrixtofile_gv(r_gvfilename.c_str());
+			r.saveweightsmatrixtofile(r_weightsmatrixfilename.c_str());
+			string cnffilename = pathname+ filename_template+"_"+inttostr(i + 1) + ".cnf";
 			r.Print(cnffilename.c_str());
+			string cnffilename_out = pathname+ filename_template+"_"+inttostr(i + 1) + ".out";
+			string cmd_str="d:\\tests\\cryptominisat32.exe "+cnffilename+ " "+cnffilename_out;
+			system(cmd_str.c_str());
 
-			/*
-
-			Conformity o;
-			o.GNPgraph(gnpprob,dimension);
-			o.initializeconformity(confpercent,confprob);
-			string matrixfilename=foldername+"\\matrix_"+inttostr(i+1)+".txt";
-			string matrixfilename_gv=foldername+"\\matrix_"+inttostr(i+1)+"_gv.txt";
-			o.savematrixtofile(matrixfilename.c_str());
-			o.savematrixtofile_gv(matrixfilename_gv.c_str());
-			logstream<<"Matrix file name "<<matrixfilename<<endl;
-			o.Printmatrix();
-			o.generalfunctioning(step,1,0,true);
-			o.Notmoreatstart(nomore,0,0);
-			o.Notmoreatstart(nomore,1,0);
-			o.Notmoreatstart(0,0,1);
-			o.Notlessatend(noless);
-			//vector<int> a=o.HSort(l,k);
-			string cnffilename=foldername+"\\conf_"+inttostr(i+1)+".cnf";
-			o.Print(cnffilename.c_str());	
-			*/
-	}
-	ofstream out;
-	out.open(logfilename);
-	out<<logstream.rdbuf();
-	logstream.clear();
-	out.close();
-	return 1;
-}
-
-int gentests_loyaled_delayed(int noftests, int dimension, int step, int nomoreloyalpercent, int nomorepercent_end, string sourcefoldername,string targetfoldername){
-	
-	std::wstring stemp = s2ws(targetfoldername);
-	LPCWSTR result = stemp.c_str();
-	CreateDirectory(result, NULL);
-
-	string logfilename=targetfoldername+"\\testlog.txt";
-	logstream<<"Checking "<<endl;
-	int nomore=dimension*nomorepercent_end/100;
-	int nomoreloyal=dimension*nomoreloyalpercent/100;
-	double timestart=cpuTime();
-	for (int i=0;i<noftests;i++){
-		cout<<endl<<"Checking test "<<i<<endl;
-		logstream<<endl<<"Test No "<<i+1<<endl;
-	
-		double timecycle1=cpuTime();
-		Conformity o;
-		string matrixfilename=sourcefoldername+"\\matrix_"+inttostr(i+1)+".txt";
-		o.loadmatrixfromfile(dimension,matrixfilename.c_str());
-	
-		string cnfoutputfilename=sourcefoldername+"\\ss\\res_conf_"+inttostr(i+1)+".cnf";
-	
-		vector<int>a = o.loadssfromfile(cnfoutputfilename.c_str());
-		if (a.size()==0){
-			cout<<endl<<"No solution"<<endl;
-			logstream<<"No solution"<<endl;
-		}	
-		else {
-			vector<int>b;
-			for (int j=0;j<dimension*(step+3);j++){
-					if (a[j]<0){b.push_back(0);}else {b.push_back(1);}
-			}
-			bool a=o.calculate(b,step);
-			if (a==true){
-				logstream<<"Solution is correct"<<endl;
-			}
-				else {
-					logstream<<"Solution is incorrect"<<endl;
+			vector<int> o = r.loadssfromfile(cnffilename_out.c_str());						
+			if (o.size()==0){
+				cout<<endl<<"No solution"<<endl;
+				out<<"No solution"<<endl;
+			}	
+			else {
+				vector<int>b;
+				for (int j=0;j<params.dimension*(params.number_of_steps+3);j++){
+						if (o[j]<0){b.push_back(0);}else {b.push_back(1);}
 				}
-				logstream<<"Generating test for loyalists"<<endl;
-				o.generalfunctioning(step,1,1,false);
-				o.restrictagit();				
-				o.Notmoreatstart(nomoreloyal,0,1);
-				o.Notmoreatend(nomore);
-				string cnffilename=targetfoldername+"\\conf_"+inttostr(i+1)+".cnf";
-				o.Print(cnffilename.c_str());
-		}		
-	}
-	ofstream out;
-	out.open(logfilename);
-	out<<logstream.rdbuf();
-	out.close();
-	logstream.clear();
-	return 1;
-}
 
-int gentests_loyaled(int noftests, int dimension, int step, int nomoreloyalpercent, int nomorepercent_end, string sourcefoldername,string targetfoldername){
-	
-	std::wstring stemp = s2ws(targetfoldername);
-	LPCWSTR result = stemp.c_str();
-	CreateDirectory(result, NULL);
-
-	string logfilename=targetfoldername+"\\testlog.txt";
-	logstream<<"Checking "<<endl;
-	int nomore=dimension*nomorepercent_end/100;
-	int nomoreloyal=dimension*nomoreloyalpercent/100;
-	double timestart=cpuTime();
-	for (int i=0;i<noftests;i++){
-		cout<<endl<<"Checking test "<<i<<endl;
-		logstream<<endl<<"Test No "<<i+1<<endl;
-	
-		double timecycle1=cpuTime();
-		Conformity o;
-		string matrixfilename=sourcefoldername+"\\matrix_"+inttostr(i+1)+".txt";
-		o.loadmatrixfromfile(dimension,matrixfilename.c_str());
-	
-		string cnfoutputfilename=sourcefoldername+"\\ss\\res_conf_"+inttostr(i+1)+".cnf";
-	
-		vector<int>a = o.loadssfromfile(cnfoutputfilename.c_str());
-		if (a.size()==0){
-			cout<<endl<<"No solution"<<endl;
-			logstream<<"No solution"<<endl;
-		}	
-		else {
-			vector<int>b;
-			for (int j=0;j<dimension*(step+3);j++){
-					if (a[j]<0){b.push_back(0);}else {b.push_back(1);}
-			}
-			bool a=o.calculate(b,step);
-			if (a==true){
-				logstream<<"Solution is correct"<<endl;
-			}
+				string tmp=pathname+filename_template+"_"+inttostr(i+1)+"_process_log";
+				bool t=r.calculate(b,params,prob_first,true,tmp.c_str());
+				if (t==true){
+					cout<<"Solution is correct"<<endl;
+					out<<"Solution is correct"<<endl;
+					}
 				else {
-					logstream<<"Solution is incorrect"<<endl;
+					cout<<"Solution is incorrect"<<endl;
+					out<<"Solution is incorrect"<<endl;
 				}
-				logstream<<"Generating test for loyalists"<<endl;
-				
-				o.generalfunctioning(1,1,1,true);
-				o.restrictagit();
-				o.Notmoreatstart(nomore,0,0);
-				o.Notmoreatstart(nomoreloyal,0,1);
-				o.Fixedpoint();
-				string cnffilename=targetfoldername+"\\conf_"+inttostr(i+1)+".cnf";
-				o.Print(cnffilename.c_str());
-		}		
-	}
-	ofstream out;
-	out.open(logfilename);
-	out<<logstream.rdbuf();
-	out.close();
-	logstream.clear();
-	return 1;
-}
 
-
-int runtests_noagit(int noftests, int dimension, int step, double gnpprob, double confprob, double confpercent, int nomorepercent, int nolesspercent, string foldername){
-	std::wstring stemp = s2ws(foldername);
-	LPCWSTR result = stemp.c_str();
-	CreateDirectory(result, NULL);
-	
-	ofstream out;
-	string logfilename=foldername+"\\testlog.txt";
-	out.open(logfilename.c_str());
-	if (out.is_open()){cout<<"Logfile succesfully open "<<endl;}
-
-	out<<"Number of tests "<<noftests<<endl;
-	logstream<<"Number of tests "<<noftests<<endl;
-	out<<"Dimension "<<dimension<<endl;
-	logstream<<"Dimension "<<dimension<<endl;
-	out<<"Number of steps "<<step<<endl;
-	logstream<<"Number of steps "<<step<<endl;
-	out<<"Probability (Gnp graph) "<<gnpprob<<endl;
-	logstream<<"Probability (Gnp graph) "<<gnpprob<<endl;
-	out<<"Probablilty (conformity) "<<confprob<<endl;
-	logstream<<"Probablilty (conformity) "<<confprob<<endl;
-	out<<"Conformity ";
-	logstream<<"Conformity ";
-	if (confpercent==0) {out<<"Random"<<endl;} else {out<<"level (percent) "<<confpercent<<endl;}
-	out<<"Nomoreatstart (percent) "<<nomorepercent<<endl;
-	out<<"Notlessatend (percent) "<<nolesspercent<<endl;	
-	logstream<<"Nomoreatstart (percent) "<<nomorepercent<<endl;
-	logstream<<"Notlessatend (percent) "<<nolesspercent<<endl;	
-	int nomore=dimension*nomorepercent/100;
-
-	double timestart=cpuTime();
-	for (int i=0;i<noftests;i++){
-			int noless=dimension*nolesspercent/100;
-			out<<endl<<"Test No "<<i+1<<endl;
-			logstream<<endl<<"Test No "<<i+1<<endl;
-			double timecycle1=cpuTime();
-			Conformity o;
-			o.GNPgraph(gnpprob,dimension);
-			o.initializeconformity(confpercent,confprob);
-			string matrixfilename=foldername+"\\matrix_"+inttostr(dimension)+"_"+inttostr(step)+"_"+inttostr(i+1)+".txt";
-			o.savematrixtofile(matrixfilename.c_str());
-			logstream<<"Matrix file name "<<matrixfilename<<endl;
-			//o.functioning(step, agitated);
-			//o.Notmoreatstart(nomore,1,0);
-			o.Printmatrix();
-			o.generalfunctioning(step,1,1,true);
-			o.Notmoreatstart(nomore,0,0);
-			o.Notmoreatstart(0,1,0);
-			o.Notmoreatstart(0,0,1);
-			o.Notlessatend(noless);
-			//vector<int> a=o.HSort(l,k);
-			string cnffilename=foldername+"\\conf_"+inttostr(dimension)+"_"+inttostr(step)+"_"+inttostr(i+1)+".cnf";
-			o.Print(cnffilename.c_str());
-
-			string cnfoutputfilename=foldername+"\\conf_"+inttostr(dimension)+"_"+inttostr(step)+"_"+inttostr(i+1)+".out";
-			string s="D:\\Tests\\cryptominisat32.exe --threads=8 "+cnffilename+" "+cnfoutputfilename;
-			system(s.c_str());
-			double timecycle2=cpuTime();
-			out<<"Solving took "<<timecycle2-timecycle1<<" seconds"<<endl;
-			logstream<<"Solving took "<<timecycle2-timecycle1<<" seconds"<<endl;
-			vector<int>a =o.loadssfromfile(cnfoutputfilename.c_str());
-			if (a.size()==0){
+				r.generalfunctioning(prob_second);
+				r.restrictagit();	
+				r.restrict_most_active(restrictions_loyal, false,true);
+				string loyaledcnffilename=pathname+filename_template_loyal+"_"+inttostr(i+1)+".cnf";
+				string loyaledcnffilename_out=pathname+filename_template_loyal+"_"+inttostr(i+1)+".out";
+				r.Print(loyaledcnffilename.c_str());
+				string cmd_str_loyal="d:\\tests\\cryptominisat32.exe "+loyaledcnffilename+ " "+loyaledcnffilename_out;
+				system(cmd_str_loyal.c_str());
+				vector<int> o2= r.loadssfromfile(loyaledcnffilename_out.c_str());						
+				if (o2.size()==0){
 					cout<<endl<<"No solution"<<endl;
 					out<<"No solution"<<endl;
-					logstream<<"No solution"<<endl;
-				}
+				}	
 				else {
 					vector<int>b;
-					for (int p=0;p<dimension*(step+3);p++){
-						if (a[p]<0){b.push_back(0);}else {b.push_back(1);}
-					} 
-					bool z=o.calculate(b,step);
-					if (z==true){
+					for (int j=0;j<params.dimension*(params.number_of_steps+3);j++){
+							if (o2[j]<0){b.push_back(0);}else {b.push_back(1);}
+					}
+
+					string tmp=pathname+filename_template_loyal+"_"+inttostr(i+1)+"_process_log";
+					bool t=r.calculate(b,params,prob_second,true,tmp.c_str());
+					if (t==true){
+						cout<<"Solution is correct"<<endl;
 						out<<"Solution is correct"<<endl;
-						logstream<<"Solution is correct"<<endl;
-					}
-						else {
-							logstream<<"Solution is incorrect"<<endl;
-						}							
-		}	
-				string tt=foldername+"\\generallog.txt";
-				ofstream outlog;
-				outlog.open(tt.c_str(),ios::app);
-				outlog<<logstream.rdbuf();
-				outlog.close();
-	}
-	out.close();
-	return 1;
-}
-int runtests_agit(int noftests, int dimension, int step, double gnpprob, double confprob, double confpercent, int nomorepercent, int nolesspercent, string foldername){
-	std::wstring stemp = s2ws(foldername);
-	LPCWSTR result = stemp.c_str();
-	CreateDirectory(result, NULL);
-	
-	ofstream out;
-	string logfilename=foldername+"\\testlog.txt";
-	out<<"Number of tests "<<noftests<<endl;
-	logstream<<"Number of tests "<<noftests<<endl;
-	out<<"Dimension "<<dimension<<endl;
-	logstream<<"Dimension "<<dimension<<endl;
-	out<<"Number of steps "<<step<<endl;
-	logstream<<"Number of steps "<<step<<endl;
-	out<<"Probability (Gnp graph) "<<gnpprob<<endl;
-	logstream<<"Probability (Gnp graph) "<<gnpprob<<endl;
-	out<<"Probablilty (conformity) "<<confprob<<endl;
-	logstream<<"Probablilty (conformity) "<<confprob<<endl;
-	out<<"Conformity ";
-	logstream<<"Conformity ";
-	if (confpercent==0) {out<<"Random"<<endl;} else {out<<"level (percent) "<<confpercent<<endl;}
-	out<<"Nomoreatstart (percent) "<<nomorepercent<<endl;
-	out<<"Notlessatend (percent) "<<nolesspercent<<endl;	
-	logstream<<"Nomoreatstart (percent) "<<nomorepercent<<endl;
-	logstream<<"Notlessatend (percent) "<<nolesspercent<<endl;	
-	int nomore=dimension*nomorepercent/100;
-
-	double timestart=cpuTime();
-	for (int i=0;i<noftests;i++){
-			int noless=dimension*nolesspercent/100;
-			out<<endl<<"Test No "<<i+1<<endl;
-			logstream<<endl<<"Test No "<<i+1<<endl;
-			double timecycle1=cpuTime();
-			Conformity o;
-			o.GNPgraph(gnpprob,dimension);
-			o.initializeconformity(confpercent,confprob);
-			string matrixfilename=foldername+"\\matrix_"+inttostr(dimension)+"_"+inttostr(step)+"_"+inttostr(i+1)+".txt";
-			o.savematrixtofile(matrixfilename.c_str());
-			logstream<<"Matrix file name "<<matrixfilename<<endl;
-			//o.functioning(step, agitated);
-			//o.Notmoreatstart(nomore,1,0);
-			o.Printmatrix();
-			o.generalfunctioning(step,1,1,true);
-			o.Notmoreatstart(nomore,0,0);
-			o.Notmoreatstart(nomore,1,0);
-			o.Notmoreatstart(0,0,1);
-			o.Notlessatend(noless);
-			//vector<int> a=o.HSort(l,k);
-			string cnffilename=foldername+"\\conf_"+inttostr(dimension)+"_"+inttostr(step)+"_"+inttostr(i+1)+".cnf";
-			o.Print(cnffilename.c_str());
-
-			string cnfoutputfilename=foldername+"\\conf_"+inttostr(dimension)+"_"+inttostr(step)+"_"+inttostr(i+1)+".out";
-			string s="D:\\Tests\\cryptominisat32.exe --threads=8 "+cnffilename+" "+cnfoutputfilename;
-			system(s.c_str());
-			double timecycle2=cpuTime();
-			out<<"Solving took "<<timecycle2-timecycle1<<" seconds"<<endl;
-			logstream<<"Solving took "<<timecycle2-timecycle1<<" seconds"<<endl;
-			vector<int>a =o.loadssfromfile(cnfoutputfilename.c_str());
-			if (a.size()==0){
-					cout<<endl<<"No solution"<<endl;
-					logstream<<endl<<"No solution"<<endl;
-					out<<"No solution"<<endl;
-				}
-				else {
-					vector<int>b;
-					for (int p=0;p<dimension*(step+3);p++){
-						if (a[p]<0){b.push_back(0);}else {b.push_back(1);}
-					} 
-					bool z=o.calculate(b,step);
-					if (z==true){
-						out<<"Solution is correct"<<endl;
-						logstream<<"Solution is correct"<<endl;
-					}
-					else {
-						out<<"Solution is incorrect"<<endl;
-						logstream<<"Solution is incorrect"<<endl;
-					}							
-		}	
-				string tt=foldername+"\\generallog.txt";
-				ofstream outlog;
-				outlog.open(tt.c_str(),ios::app);
-				outlog<<logstream.rdbuf();
-				outlog.close();
-	}
-	out.close();
-	return 1;
-}
-
-int runtests_loyaled_vs_agit(int noftests, int dimension, int step, double gnpprob, double confprob, double confpercent, int nomorepercent, int nolesspercent, string foldername){
-	std::wstring stemp = s2ws(foldername);
-	LPCWSTR result = stemp.c_str();
-	CreateDirectory(result, NULL);
-	
-	ofstream out;
-	string logfilename=foldername+"\\testlog.txt";
-	out<<"Number of tests "<<noftests<<endl;
-	logstream<<"Number of tests "<<noftests<<endl;
-	out<<"Dimension "<<dimension<<endl;
-	logstream<<"Dimension "<<dimension<<endl;
-	out<<"Number of steps "<<step<<endl;
-	logstream<<"Number of steps "<<step<<endl;
-	out<<"Probability (Gnp graph) "<<gnpprob<<endl;
-	logstream<<"Probability (Gnp graph) "<<gnpprob<<endl;
-	out<<"Probablilty (conformity) "<<confprob<<endl;
-	logstream<<"Probablilty (conformity) "<<confprob<<endl;
-	out<<"Conformity ";
-	logstream<<"Conformity ";
-	if (confpercent==0) {out<<"Random"<<endl;} else {out<<"level (percent) "<<confpercent<<endl;}
-	out<<"Nomoreatstart (percent) "<<nomorepercent<<endl;
-	out<<"Notlessatend (percent) "<<nolesspercent<<endl;	
-	logstream<<"Nomoreatstart (percent) "<<nomorepercent<<endl;
-	logstream<<"Notlessatend (percent) "<<nolesspercent<<endl;	
-	int nomore=dimension*nomorepercent/100;
-
-	double timestart=cpuTime();
-	for (int i=0;i<noftests;i++){
-			int noless=dimension*nolesspercent/100;
-			out<<endl<<"Test No "<<i+1<<endl;
-			logstream<<endl<<"Test No "<<i+1<<endl;
-			double timecycle1=cpuTime();
-			Conformity o;
-			o.GNPgraph(gnpprob,dimension);
-			o.initializeconformity(confpercent,confprob);
-			string matrixfilename=foldername+"\\matrix_"+inttostr(dimension)+"_"+inttostr(step)+"_"+inttostr(i+1)+".txt";
-			o.savematrixtofile(matrixfilename.c_str());
-			logstream<<"Matrix file name "<<matrixfilename<<endl;
-			//o.functioning(step, agitated);
-			//o.Notmoreatstart(nomore,1,0);
-			o.Printmatrix();
-			o.generalfunctioning(step,1,1,true);
-			o.Notmoreatstart(nomore,0,0);
-			o.Notmoreatstart(nomore,1,0);
-			o.Notmoreatstart(0,0,1);
-			o.Notlessatend(noless);
-			//vector<int> a=o.HSort(l,k);
-			string cnffilename=foldername+"\\conf_"+inttostr(dimension)+"_"+inttostr(step)+"_"+inttostr(i+1)+".cnf";
-			o.Print(cnffilename.c_str());
-
-			string cnfoutputfilename=foldername+"\\conf_"+inttostr(dimension)+"_"+inttostr(step)+"_"+inttostr(i+1)+".out";
-			string s="D:\\Tests\\cryptominisat32.exe --threads=8 "+cnffilename+" "+cnfoutputfilename;
-			system(s.c_str());
-			double timecycle2=cpuTime();
-			out<<"Solving took "<<timecycle2-timecycle1<<" seconds"<<endl;
-			logstream<<"Solving took "<<timecycle2-timecycle1<<" seconds"<<endl;
-			vector<int>a =o.loadssfromfile(cnfoutputfilename.c_str());
-			if (a.size()==0){
-					cout<<endl<<"No solution"<<endl;
-					logstream<<"No solution"<<endl;
-					out<<"No solution"<<endl;
-				}
-				else {
-					vector<int>b;
-					for (int p=0;p<dimension*(step+3);p++){
-						if (a[p]<0){b.push_back(0);}else {b.push_back(1);}
-					} 
-					bool z=o.calculate(b,step);
-					if (z==true){
-						out<<"Solution is correct"<<endl;
-						logstream<<"Solution is correct"<<endl;
-					}
-					else {
-						out<<"Solution is incorrect"<<endl;
-						logstream<<"Solution is incorrect"<<endl;
-					}		
-			
-				o.generalfunctioning(1,1,1,true);
-				o.restrictagit();
-				o.Notmoreatstart(nomore,0,0);
-				o.Notmoreatstart(nomore,0,1);
-				o.Notmoreatend(nomore);
-				cnffilename=foldername+"\\conf_"+inttostr(dimension)+"_"+inttostr(step)+"_"+inttostr(i+1)+"_LOYALED.cnf";
-				o.Print(cnffilename.c_str());
-				string cnfoutputfilename=foldername+"\\conf_"+inttostr(dimension)+"_"+inttostr(step)+"_"+inttostr(i+1)+"_LOYALED.out";
-				string s="D:\\Tests\\cryptominisat32.exe --threads=8 "+cnffilename+" "+cnfoutputfilename;
-				double timecycle3=cpuTime();
-				system(s.c_str());
-				double timecycle4=cpuTime();
-				logstream<<"Solving took "<<timecycle4-timecycle3<<" seconds"<<endl;
-				vector<int>aa =o.loadssfromfile(cnfoutputfilename.c_str());
-				logstream<<"_________________Loyalists stage____________________"<<endl;
-				if (aa.size()==0){
-						cout<<endl<<"No solution"<<endl;
-						logstream<<"No solution"<<endl;
-						out<<"No solution"<<endl;
-					}
-					else {
-						vector<int>bb;
-						for (int p=0;p<dimension*(step+3);p++){
-							if (aa[p]<0){bb.push_back(0);}else {bb.push_back(1);}
-						} 
-						bool zz=o.calculate(bb,step);
-						if (zz==true){
-							out<<"Solution is correct"<<endl;
-							logstream<<"Solution is correct"<<endl;
 						}
-						else {
-							out<<"Solution is incorrect"<<endl;
-							logstream<<"Solution is incorrect"<<endl;
-						}		
-					}		
-		}	
-				string tt=foldername+"\\generallog.txt";
-				ofstream outlog;
-				outlog.open(tt.c_str(),ios::app);
-				outlog<<logstream.rdbuf();
-				outlog.close();
-	}
-
-	out.close();
-	return 1;
-}
-int runtests_loyaled_vs_agit_delayed(int noftests, int dimension, int step, double gnpprob, double confprob, double confpercent, int nomorepercent, int nomoreloyalpercent, int nolesspercent, string foldername){
-	std::wstring stemp = s2ws(foldername);
-	LPCWSTR result = stemp.c_str();
-	CreateDirectory(result, NULL);
-
-
-	
-	ofstream out;
-	string logfilename=foldername+"\\testlog.txt";
-	out<<"Number of tests "<<noftests<<endl;
-	logstream<<"Number of tests "<<noftests<<endl;
-	out<<"Dimension "<<dimension<<endl;
-	logstream<<"Dimension "<<dimension<<endl;
-	out<<"Number of steps "<<step<<endl;
-	logstream<<"Number of steps "<<step<<endl;
-	out<<"Probability (Gnp graph) "<<gnpprob<<endl;
-	logstream<<"Probability (Gnp graph) "<<gnpprob<<endl;
-	out<<"Probablilty (conformity) "<<confprob<<endl;
-	logstream<<"Probablilty (conformity) "<<confprob<<endl;
-	out<<"Conformity ";
-	logstream<<"Conformity ";
-	if (confpercent==0) {out<<"Random"<<endl;} else {out<<"level (percent) "<<confpercent<<endl;}
-	out<<"Nomoreatstart (percent) "<<nomorepercent<<endl;
-	out<<"Notlessatend (percent) "<<nolesspercent<<endl;	
-	logstream<<"Nomoreatstart (percent) "<<nomorepercent<<endl;
-	logstream<<"Notmoreatend (percent) "<<nolesspercent<<endl;	
-	logstream<<"Notmoreloyal (percent) "<<nomoreloyalpercent<<endl;	
-	int nomore=dimension*nomorepercent/100;
-	int nomoreloyal=dimension*nomoreloyalpercent/100;
-	double timestart=cpuTime();
-	for (int i=0;i<noftests;i++){
-			int noless=dimension*nolesspercent/100;
-			out<<endl<<"Test No "<<i+1<<endl;
-			logstream<<endl<<"Test No "<<i+1<<endl;
-			double timecycle1=cpuTime();
-			Conformity o;
-			o.GNPgraph(gnpprob,dimension);
-			o.initializeconformity(confpercent,confprob);
-			string matrixfilename=foldername+"\\matrix_"+inttostr(dimension)+"_"+inttostr(step)+"_"+inttostr(i+1)+".txt";
-			o.savematrixtofile(matrixfilename.c_str());
-			logstream<<"Matrix file name "<<matrixfilename<<endl;
-			//o.functioning(step, agitated);
-			//o.Notmoreatstart(nomore,1,0);
-			o.Printmatrix();
-			o.generalfunctioning(step,1,1,true);
-			o.Notmoreatstart(nomore,0,0);
-			o.Notmoreatstart(nomore,1,0);
-			o.Notmoreatstart(0,0,1);
-			o.Notlessatend(noless);
-			//vector<int> a=o.HSort(l,k);
-			string cnffilename=foldername+"\\conf_"+inttostr(dimension)+"_"+inttostr(step)+"_"+inttostr(i+1)+".cnf";
-			o.Print(cnffilename.c_str());
-
-			string cnfoutputfilename=foldername+"\\conf_"+inttostr(dimension)+"_"+inttostr(step)+"_"+inttostr(i+1)+".out";
-			string s="D:\\Tests\\cryptominisat32.exe --threads=8 "+cnffilename+" "+cnfoutputfilename;
-			system(s.c_str());
-			double timecycle2=cpuTime();
-			out<<"Solving took "<<timecycle2-timecycle1<<" seconds"<<endl;
-			logstream<<"Solving took "<<timecycle2-timecycle1<<" seconds"<<endl;
-			vector<int>a =o.loadssfromfile(cnfoutputfilename.c_str());
-				if (a.size()==0){
-					cout<<endl<<"No solution"<<endl;
-					logstream<<"No solution"<<endl;
-					out<<"No solution"<<endl;
-				}
-				else {
-					vector<int>b;
-					for (int p=0;p<dimension*(step+3);p++){
-						if (a[p]<0){b.push_back(0);}else {b.push_back(1);}
-					} 
-					bool z=o.calculate(b,step);
-					if (z==true){
-						out<<"Solution is correct"<<endl;
-						logstream<<"Solution is correct"<<endl;
-					}
 					else {
+						cout<<"Solution is incorrect"<<endl;
 						out<<"Solution is incorrect"<<endl;
-						logstream<<"Solution is incorrect"<<endl;
-					}							
-					
-
-				o.generalfunctioning(step,1,1,false);
-				o.restrictagit();
-				//o.Notmoreatstart(nomore,0,0);
-				o.Notmoreatstart(nomoreloyal,0,1);
-				o.Notmoreatend(nomore);
-				cnffilename=foldername+"\\conf_"+inttostr(dimension)+"_"+inttostr(step)+"_"+inttostr(i+1)+"_LOYALED.cnf";
-				o.Print(cnffilename.c_str());
-				string cnfoutputfilename=foldername+"\\conf_"+inttostr(dimension)+"_"+inttostr(step)+"_"+inttostr(i+1)+"_LOYALED.out";
-				string s="D:\\Tests\\cryptominisat32.exe --threads=8 "+cnffilename+" "+cnfoutputfilename;
-				double timecycle3=cpuTime();
-				system(s.c_str());
-				double timecycle4=cpuTime();
-				logstream<<"Solving took "<<timecycle4-timecycle3<<" seconds"<<endl;
-				vector<int>aa =o.loadssfromfile(cnfoutputfilename.c_str());
-				logstream<<"_________________Loyalists stage____________________"<<endl;
-				if (aa.size()==0){
-						cout<<endl<<"No solution"<<endl;
-						logstream<<"No solution"<<endl;
-						out<<"No solution"<<endl;
 					}
-					else {
-						vector<int>bb;
-						for (int p=0;p<dimension*(step+3);p++){
-							if (aa[p]<0){bb.push_back(0);}else {bb.push_back(1);}
-						} 
-						bool zz=o.calculate(bb,step);
-						if (zz==true){
-							out<<"Solution is correct"<<endl;
-							logstream<<"Solution is correct"<<endl;
-						}
-						else {
-							out<<"Solution is incorrect"<<endl;
-							logstream<<"Solution is incorrect"<<endl;
-						}		
-					}		
-		}		
-				string tt=foldername+"\\generallog.txt";
-				ofstream outlog;
-				outlog.open(tt.c_str(),ios::app);
-				outlog<<logstream.rdbuf();
-				outlog.close();
-	}
-
-	out.close();
-	return 1;
-}
-
-
-int checktests(int noftests, int dimension, int step, double gnpprob, double confprob, double confpercent, int nomorepercent, int nolesspercent, string foldername){
-	std::wstring stemp = s2ws(foldername);
-	LPCWSTR result = stemp.c_str();
-	string logfilename=foldername+"\\testlog.txt";
-	logstream<<"Checking "<<endl;
-	
-	double timestart=cpuTime();
-	for (int i=0;i<noftests;i++){
-		cout<<endl<<"Checking test "<<i<<endl;
-		logstream<<endl<<"Test No "<<i+1<<endl;
-	
-		double timecycle1=cpuTime();
-		Conformity o;
-		string matrixfilename=foldername+"\\matrix_"+inttostr(i+1)+".txt";
-		string matrixfilename_gv=foldername+"\\matrix_"+inttostr(i+1)+"_gv.txt";
-		o.loadmatrixfromfile(dimension,matrixfilename.c_str());
-		o.savematrixtofile_gv(matrixfilename_gv.c_str());
-		string cnfoutputfilename=foldername+"\\ss\\res_conf_"+inttostr(i+1)+".cnf";
-		string tempprogress = foldername + "\\progress";
-		vector<int>a = o.loadssfromfile(cnfoutputfilename.c_str());
-		if (a.size()==0){
-			cout<<endl<<"No solution"<<endl;
-			logstream<<"No solution"<<endl;
-		}	
-		else {
-			vector<int>b;
-			for (int i=0;i<dimension*(step+3);i++){
-					if (a[i]<0){b.push_back(0);}else {b.push_back(1);}
-			}
-			bool t=o.calculate(b,step,tempprogress.c_str());
-			if (t==true){
-				logstream<<"Solution is correct"<<endl;
-			}
-				else {
-					logstream<<"Solution is incorrect"<<endl;
 				}
-		}		
+		}
 	}
-	ofstream out;
-	out.open(logfilename);
-	out<<logstream.rdbuf();
 	out.close();
-	logstream.clear();
-	return 1;
 }
-
 void gentests_gen(int noftests, Conformity_Parameters params, Conformity_problem prob, string pathname){
 	std::wstring stemp = s2ws(pathname);
 	
 	LPCWSTR result = stemp.c_str();
 	CreateDirectory(result, NULL);
+	
+	string bat_filename=pathname+"run_tests.bat";
+	ofstream out_bat;
+	out_bat.open(bat_filename);
+	out_bat<<"cd /d "<<pathname<<endl;
 	
 	string param_file=pathname+"parameters.txt";
 	params.print(param_file);
@@ -3007,13 +2986,18 @@ void gentests_gen(int noftests, Conformity_Parameters params, Conformity_problem
 	for (int i=0;i<noftests;i++){
 			Conformity r(params);
 			r.generalfunctioning(prob);
+			r.restrict_most_active(5,true,false);
 			string r_matrixfilename = pathname+filename_template+"_matrix_" + inttostr(i + 1) + ".txt";
+			string r_gvfilename=pathname+filename_template+"_gv_"+inttostr(i+1)+".dot";
 			string r_weightsmatrixfilename = pathname+filename_template+"_weights_" + inttostr(i + 1) + ".txt";
 			r.savematrixtofile(r_matrixfilename.c_str());
+			r.savematrixtofile_gv(r_gvfilename.c_str());
 			r.saveweightsmatrixtofile(r_weightsmatrixfilename.c_str());
 			string cnffilename = pathname+ filename_template+"_"+inttostr(i + 1) + ".cnf";
 			r.Print(cnffilename.c_str());
+			out_bat<<"cryptominisat32.exe "<<cnffilename<< " "<<pathname+ filename_template+"_"+inttostr(i + 1) +"_out"<<endl;
 	}
+	out_bat.close();
 }
 void gentests_gen_loyaled(int noftests, Conformity_problem prob_loyal, string sourcepathname, string newpathname){
 	
@@ -3078,8 +3062,8 @@ void gentests_gen_loyaled(int noftests, Conformity_problem prob_loyal, string so
 			}	
 			else {
 				vector<int>b;
-				for (int i=0;i<params.dimension*(params.number_of_steps+3);i++){
-						if (o[i]<0){b.push_back(0);}else {b.push_back(1);}
+				for (int j=0;j<params.dimension*(params.number_of_steps+3);j++){
+						if (o[j]<0){b.push_back(0);}else {b.push_back(1);}
 				}
 				string tmp=sourcepathname+filename_template+"_"+inttostr(i+1)+"_process.log";
 				bool t=r.calculate(b,params,prob,true,tmp.c_str());
@@ -3123,10 +3107,14 @@ void checktests_gen(int noftests,  string pathname){
 	if (params.conformity_weights==Conformity_weights::Weights_Decrease_with_distance){filename_template+="decw";}
 	if (prob.conformity_problem_type==Conformity_problem_type::Simple){filename_template+="_simp";}
 	if (prob.conformity_problem_type==Conformity_problem_type::Agitated){filename_template+="_agit";}
+	string prefix="";
+	string postfix="_out";
+	//string prefix="minisat_simp_";
+	//string postfix="_cnf.txt";
 	for (int i=0;i<noftests;i++){
 			string r_matrixfilename = pathname+filename_template+"_matrix_" + inttostr(i + 1) + ".txt";
 			string r_weightsmatrixfilename = pathname+filename_template+"_weights_" + inttostr(i + 1) + ".txt";
-			string sat_solutionfilename=pathname+"minisat_simp_"+filename_template+"_"+inttostr(i + 1)+"_cnf.txt";
+			string sat_solutionfilename=pathname+prefix+filename_template+"_"+inttostr(i + 1)+postfix;
 			Conformity r(params,r_matrixfilename,r_weightsmatrixfilename);
 			vector<int> o= r.loadssfromfile(sat_solutionfilename.c_str());						
 			if (o.size()==0){
@@ -3135,8 +3123,8 @@ void checktests_gen(int noftests,  string pathname){
 			}	
 			else {
 				vector<int>b;
-				for (int i=0;i<params.dimension*(params.number_of_steps+3);i++){
-						if (o[i]<0){b.push_back(0);}else {b.push_back(1);}
+				for (int j=0;j<params.dimension*(params.number_of_steps+3);j++){
+						if (o[j]<0){b.push_back(0);}else {b.push_back(1);}
 				}
 				string tmp=pathname+filename_template+"_"+inttostr(i+1)+"_process.log";
 				bool t=r.calculate(b,params,prob,true,tmp.c_str());
@@ -3196,8 +3184,8 @@ void checktests_gen_loyaled(int noftests,  string pathname){
 			}	
 			else {
 				vector<int>b;
-				for (int i=0;i<params.dimension*(params.number_of_steps+3);i++){
-						if (o[i]<0){b.push_back(0);}else {b.push_back(1);}
+				for (int j=0;j<params.dimension*(params.number_of_steps+3);j++){
+						if (o[j]<0){b.push_back(0);}else {b.push_back(1);}
 				}
 				string tmp=pathname+filename_template+"_"+inttostr(i+1)+"_process.log";
 				bool t=r.calculate(b,params,prob_loyal,true,tmp.c_str());
@@ -3215,10 +3203,16 @@ void checktests_gen_loyaled(int noftests,  string pathname){
 }
 
 int main (){
+	Conformity ttt;
+	/*ttt.Barabashi_graph(50,2);
+	ttt.savematrixtofile("D:\\tests\\Conformity\\barabashi50.txt");
+	ttt.savematrixtofile_gv("D:\\tests\\Conformity\\barabashi_gv50.txt");*/
+
+
 	Conformity_Parameters p;
-	p.dimension=200;
+	p.dimension=40;
 	p.number_of_steps=10;
-	p.conformity_graph=Conformity_graph::GNP_Graph;
+	p.conformity_graph=Conformity_graph::Barabashi_graph;
 	p.graph_parameter_1=0.3;
 	p.graph_parameter_2=20;
 	p.conformity_conformitylevel_type=Conformity_conformitylevel_type::RandomConformityLevel;
@@ -3243,14 +3237,21 @@ int main (){
 	int nloyal=p.dimension*loyalists_percent/100;
 	Conformity_problem loyaled_vs_agit(Conformity_problem_type::Loyal_VS_Agit, 100-loyalists_percent, agitators_percent, nagit, nloyal, p.Weights_radius);
 	Conformity_problem loyaled_vs_agit_delayed(Conformity_problem_type::Loyal_VS_Agit_delayed, 100-loyalists_percent, agitators_percent, nagit, nloyal, p.Weights_radius);
+	
+	runtests_Plos(10,p,agitated,loyaled_vs_agit_delayed,"D:\\tests\\Conformity\\Barabashi_40_test\\",5,0);
+	p.dimension=30;
+	runtests_Plos(10,p,agitated,loyaled_vs_agit_delayed,"D:\\tests\\Conformity\\Barabashi_30_test\\",5,0);
+
+	/*
+	gentests_gen(10,p,agitated,"D:\\tests\\Conformity\\Barabashi_100_agit\\");
+	system("D:\\tests\\Conformity\\Barabashi_100_agit\\run_tests.bat");
+	checktests_gen(10,"D:\\tests\\Conformity\\Barabashi_100_agit\\");
+
 	//need to resolve asap.
 	
-	gentests_gen_loyaled(10,loyaled_vs_agit_delayed,"D:\\Tests_backup\\gnp200_02_decw_agit\\","D:\\Tests_backup\\26.03.14\\gnp200_02_decw_lvsa_del\\");
-	gentests_gen_loyaled(10,loyaled_vs_agit_delayed,"D:\\Tests_backup\\gnp200_02_rndw_agit\\","D:\\Tests_backup\\26.03.14\\gnp200_02_rndw_lvsa_del\\");
-	gentests_gen_loyaled(10,loyaled_vs_agit_delayed,"D:\\Tests_backup\\gnp200_04_decw_agit\\","D:\\Tests_backup\\26.03.14\\gnp200_04_decw_lvsa_del\\");
-	gentests_gen_loyaled(10,loyaled_vs_agit_delayed,"D:\\Tests_backup\\gnp200_04_rndw_agit\\","D:\\Tests_backup\\26.03.14\\gnp200_04_rndw_lvsa_del\\");
-
-		
+	
+	
+	/*	
 	p.graph_parameter_1=0.2;
 	p.conformity_graph=Conformity_graph::WS_Graph;
 	
