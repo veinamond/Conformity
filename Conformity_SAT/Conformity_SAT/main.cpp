@@ -1082,22 +1082,18 @@ void Conformity::printprogresstofile_neato_gv(vector<int>agitators, vector<int> 
 		double x = cos((M_PI * 2)*i / dimension)*radius;
 		double y = sin((M_PI * 2)*i/ dimension)*radius;
 		if (agitators[i] == 1){
-			out << "\tv_" << i + 1 << "[label=\"v_" << i + 1 << "\", pos=\"" << x << "," << y << "!\", shape = \"circle\"];" << endl;
+			out << "\tv_" << i + 1 << "[label=<v<SUB>" << i + 1 << "</SUB>>, xlabel=\"" << "A" <<"["<<vertexdegrees[i]<<"]"<< "\", pos=\"" << x << "," << y << "!\", shape = \"circle\"];" << endl;
+		}
+		else if (loyalists[i]==1){
+			out << "\tv_" << i + 1 << "[label=<v<SUB>" << i + 1 << "</SUB>>, xlabel=\"" << "L" <<"["<<vertexdegrees[i]<<"]"<< "\", pos=\"" << x << "," << y << "!\", shape = \"circle\"];" << endl;
 		}
 		else if (activity[i] == 1){
-			out << "\tv_" << i + 1 << "[label=\"v_" << i + 1 << "\", pos=\"" << x << "," << y << "!\", shape = \"doublecircle\"];" << endl;
+			out << "\tv_" << i + 1 << "[label=<v<SUB>" << i + 1 << "</SUB>>, xlabel=\"" << curinput[i] << "(" << conformitylevel[i] << ")" <<"["<<vertexdegrees[i]<<"]"<< "\", pos=\"" << x << "," << y << "!\", shape = \"doublecircle\"];" << endl;
 		}
-		else { out << "\tv_" << i + 1 << "[label=\"v_" << i + 1 << "\", pos=\"" << x << "," << y << "!\", shape = \"circle\"];" << endl; }
-		
-
-		if ((agitators[i] == 0) && (loyalists[i] == 0)) { out << "\tinfo_" << i + 1 << "[label=\"" << curinput[i] << "(" << conformitylevel[i] << ")" <<"["<<vertexdegrees[i]<<"]"<< "\", pos=\"" << x*1.15 << "," << y*1.15 << "!\", shape = \"plaintext\"];" << endl; }
-		else {
-			if (agitators[i] == 1){ out << "\tinfo_" << i + 1 << "[label=\"" << "A" <<"["<<vertexdegrees[i]<<"]"<< "\", pos=\"" << x*1.15 << "," << y*1.15 << "!\", shape = \"plaintext\"];" << endl; }
-		else 
-		if (loyalists[i] == 1){ out << "\tinfo_" << i + 1 << "[label=\"" << "L"<<"["<<vertexdegrees[i]<<"]" << "\", pos=\"" << x*1.15 << "," << y*1.15 << "!\", shape = \"plaintext\"];" << endl; }
-
-		}
+		else { out << "\tv_" << i + 1 << "[label=<v<SUB>" << i + 1 << "</SUB>>, xlabel=\"" << curinput[i] << "(" << conformitylevel[i] << ")" <<"["<<vertexdegrees[i]<<"]"<< "\", pos=\"" << x << "," << y << "!\", shape = \"circle\"];" << endl; }
+	
 	}
+	
 	
 
 	for (int i = 0; i<dimension; i++){
@@ -3210,7 +3206,7 @@ int main (){
 
 
 	Conformity_Parameters p;
-	p.dimension=40;
+	p.dimension=20;
 	p.number_of_steps=10;
 	p.conformity_graph=Conformity_graph::Barabashi_graph;
 	p.graph_parameter_1=0.3;
@@ -3225,8 +3221,8 @@ int main (){
 	//p.Weights_radius=4;
 	p.conformity_neighbourhood_type=Conformity_neighbourhood_type::AlwaysFullNeighborhood;
 	
-	int agitators_percent=20;
-	int loyalists_percent=30;
+	int agitators_percent=10;
+	int loyalists_percent=20;
 
 	Conformity_problem simple_problem(Conformity_problem_type::Simple, 30, 80, 0, 0, p.Weights_radius);
 	Conformity_problem agitated(Conformity_problem_type::Agitated, 20, 80, p.dimension*agitators_percent/100, 0, p.Weights_radius);
@@ -3237,10 +3233,17 @@ int main (){
 	int nloyal=p.dimension*loyalists_percent/100;
 	Conformity_problem loyaled_vs_agit(Conformity_problem_type::Loyal_VS_Agit, 100-loyalists_percent, agitators_percent, nagit, nloyal, p.Weights_radius);
 	Conformity_problem loyaled_vs_agit_delayed(Conformity_problem_type::Loyal_VS_Agit_delayed, 100-loyalists_percent, agitators_percent, nagit, nloyal, p.Weights_radius);
+	p.dimension=20;
 	
-	runtests_Plos(10,p,agitated,loyaled_vs_agit_delayed,"D:\\tests\\Conformity\\Barabashi_40_test\\",5,0);
-	p.dimension=30;
-	runtests_Plos(10,p,agitated,loyaled_vs_agit_delayed,"D:\\tests\\Conformity\\Barabashi_30_test\\",5,0);
+	runtests_Plos(10,p,agitated,loyaled_vs_agit_delayed,"D:\\tests\\Conformity\\Barabashi_20_test_3\\",5,0);
+	
+	p.conformity_graph=Conformity_graph::GNP_Graph;
+
+	runtests_Plos(10,p,agitated,loyaled_vs_agit_delayed,"D:\\tests\\Conformity\\GNP_graph_20_test_2\\",5,0);
+	
+	p.conformity_graph=Conformity_graph::WS_Graph;
+	p.graph_parameter_1=0.8;
+	runtests_Plos(10,p,agitated,loyaled_vs_agit_delayed,"D:\\tests\\Conformity\\WS_20_test\\",5,0);
 
 	/*
 	gentests_gen(10,p,agitated,"D:\\tests\\Conformity\\Barabashi_100_agit\\");
